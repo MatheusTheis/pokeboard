@@ -43,6 +43,8 @@ const INJECT = {
   card: path.join(__dirname, 'inject', 'pb-card.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
+// Ícone da janela e da barra de tarefas (gerado por scripts/make-icon.js). No Windows o .ico tem todos os tamanhos.
+const ICON_PATH = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
 // O aviso "Insecure Content-Security-Policy" do Electron fala do CSP do site do jogo, que não controlamos.
 // O shell tem CSP próprio; o aviso só poluía o console dos painéis.
@@ -358,6 +360,9 @@ ipcMain.on('pb:rename', (_, i, name) => {
 
 // ---------- app ----------
 // Duas instâncias abertas disputariam as mesmas pastas de sessão (persist:contaN) e quebrariam os logins.
+// Sem um ID próprio, o Windows agrupa a janela com o ícone padrão do Electron na barra de tarefas.
+if (process.platform === 'win32') app.setAppUserModelId('com.matheustheis.pokeboard');
+
 const firstInstance = app.requestSingleInstanceLock();
 if (!firstInstance) app.quit();
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
@@ -374,6 +379,7 @@ app.whenReady().then(() => {
     width: 1500, height: 940, minWidth: 900, minHeight: 600,
     backgroundColor: '#12161E',  // --pb-screen
     title: 'PokeBoard',
+    icon: ICON_PATH,
     autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload-shell.js'), contextIsolation: true, sandbox: true },
   });

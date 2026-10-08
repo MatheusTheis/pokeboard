@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/icon.png" alt="Ícone do PokeBoard: uma Pokédex de bolso vermelha em pixel art" width="96">
+
 # PokeBoard
 
 **Várias contas de [Poke Idle World](https://poke.idleworld.online) numa janela só, com visual PokeBoard Retro e ferramentas de visualização.**
@@ -119,7 +121,11 @@ src/recorder.js             gravador de estudo do jogo (PB_RECORD=1)
 theme/theme.css             o seu tema, aplicado por último
 docs/design-system.md       o design system PokeBoard Retro
 scripts/check.js            confere a sintaxe dos .js e as chaves dos .css
+scripts/make-icon.js        gera assets/icon.png e assets/icon.ico (pixel art própria)
+assets/                     ícone do app (janela e barra de tarefas)
 ```
+
+Para redesenhar o ícone, edite a grade em `scripts/make-icon.js` e rode `npx electron scripts/make-icon.js`.
 
 CSS muda na hora ao salvar; scripts de `src/inject/` e o `preload-game.js` entram ao recarregar o painel (↻); o `src/main.js` pede fechar e abrir o app.
 
