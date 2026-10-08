@@ -1,0 +1,26 @@
+# Dependências (o Electron é baixado no npm install)
+node_modules/
+
+# Builds e pacotes
+dist/
+out/
+*.asar
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Dados do app ficam em %APPDATA%\poke-board (login, board.json, gravador) e nunca entram aqui.
+# Por garantia, se alguém rodar com --user-data-dir apontando para dentro do projeto:
+board.json
+sessao-conta*.bin
+login-conta*.bin
+debug/

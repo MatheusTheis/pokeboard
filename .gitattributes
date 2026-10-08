@@ -1,0 +1,11 @@
+# Texto com fim de linha normalizado no repositório; cada sistema usa o seu ao baixar.
+* text=auto
+
+*.js   text
+*.css  text
+*.html text
+*.json text
+*.md   text
+*.yml  text
+
+*.png  binary

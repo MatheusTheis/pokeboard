@@ -1,0 +1,749 @@
+/* =====================================================================
+   PokeBoard — janelas do jogo no visual Retro (injetado depois de game-skin.css).
+   Só aparência (fundo, borda, cantos, sombra, cor, fonte): tamanhos e posições continuam os do jogo.
+
+   Todas as janelas têm a mesma moldura, com prefixos diferentes:
+     .win-window (Mercado .mkt2-window, Breeding .brd-window, Equipe .team-window, Streak .stk-window,
+     lojas de NPC e Depósito .nsh-window, Missões .qt-window, Pokédex .dex-window…)
+     cabeçalhos .ds-head | .brd-head | .nsh-head | .ball-head | .mkt2-head
+     enfeites *-hex-bg, *-hex-rail, *-hex-cap, *-gem (somem)
+     fechar .cfg-x | .ds-x | .nsh-x | .mkt2-x
+   Auto-Helper tem um modal próprio (.ah-modal).
+   ===================================================================== */
+
+/* ---------- moldura comum ---------- */
+.game-root .win-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .win-window::after { display: none !important; }  /* feixe de luz girando na borda */
+.game-root .win-overlay,
+.game-root .ah-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* Cabeçalho = carcaça vermelha da Pokédex com faixa inferior escura. */
+.game-root .win-window :is(.ds-head, .brd-head, .nsh-head, .ball-head, .mkt2-head),
+.game-root .ah-modal .ah-modal-title {
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+  padding-bottom: 4px !important;
+}
+.game-root .win-window :is([class*="-hex-bg"], [class*="-hex-rail"], [class*="-hex-cap"], .ds-gem, .brd-gem, .nsh-gem, .mkt2-sechead-gem) { display: none !important; }
+/* Lente azul nos cabeçalhos sem brasão (os do Mercado e do Breeding já têm um à esquerda). */
+.game-root .win-window :is(.ds-head, .nsh-head, .ball-head) { position: relative; padding-left: 46px !important; }
+.game-root .win-window :is(.ds-head, .nsh-head, .ball-head)::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.game-root .win-window :is(.ds-title, .brd-title, .nsh-title, .ball-title, .mkt2-title),
+.game-root .ah-modal .ah-modal-title > span {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  filter: none !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .win-window :is(.brd-subtitle, .mkt2-subtitle) { color: var(--pb-on-red) !important; text-shadow: none !important; font: 500 12px/16px var(--pb-font-body) !important; opacity: .85; }
+.game-root .win-window :is(.mkt2-crest, .brd-head-crest) { filter: none !important; box-shadow: none !important; }
+.game-root :is(.win-window, .ah-modal) :is(.cfg-x, .ds-x, .nsh-x, .mkt2-x, .ah-modal-close) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--pb-on-red) !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+.game-root :is(.win-window, .ah-modal) :is(.cfg-x, .ds-x, .nsh-x, .mkt2-x, .ah-modal-close):focus-visible { outline: 2px solid var(--pb-on-red) !important; outline-offset: 2px; }
+
+/* Corpo = "tela" escura. */
+.game-root .win-window :is(.win-body, .brd-body, .stk-body, .mkt2-body, .dpt-inner, .nsh-well) { background: var(--pb-screen) !important; }
+
+/* ---------- peças repetidas dentro das janelas ---------- */
+/* Campos de texto, número e listas. */
+.game-root :is(.win-window, .ah-modal) :is(input[type="text"], input[type="search"], input[type="number"], input:not([type]), select, textarea) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root :is(.win-window, .ah-modal) :is(input, select, textarea):focus { outline: none !important; box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root :is(.win-window, .ah-modal) :is(input, textarea)::placeholder { color: var(--pb-ink-muted) !important; }
+.game-root :is(.win-window, .ah-modal) select option { background: var(--pb-surface) !important; color: var(--pb-ink) !important; }
+.game-root :is(.win-window, .ah-modal) input:is([type="checkbox"], [type="radio"], [type="range"]) { accent-color: var(--pb-pika-yellow) !important; }
+
+/* Abas (Mercado, lojas, Depósito, Missões e subabas genéricas): a ativa ganha moldura amarela. */
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  color: var(--pb-ink-muted) !important;
+  box-shadow: var(--pb-frame-border) !important;
+  text-shadow: none !important;
+  filter: none !important;
+  transform: none !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt):hover { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; }
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt):is(.on, [aria-selected="true"]) {
+  color: var(--pb-ink) !important;
+  background: var(--pb-surface-raised) !important;
+  box-shadow: var(--pb-frame-focus) !important;
+}
+.game-root .win-window :is(.mkt2-tab-label, .mkt2-tab-count) { font-family: var(--pb-font-body) !important; text-shadow: none !important; letter-spacing: 0 !important; }
+
+/* Botões das janelas: secundário cinza; principal vermelho; resgatar/recompensa amarelo. */
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  text-shadow: none !important;
+  filter: none !important;
+  font-family: var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .win-window :is(.mkt2-btn--primary, .btn-primary, .brd-breed-btn, .nsh-btn:not(.nsh-btn-alt)) { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
+/* Recompensa (resgatar, investir pontos): amarelo. .nsh-btn.gft-claim empata com o vermelho das lojas e vence por vir depois. */
+.game-root .win-window :is(.qt-claim, .btn-gold, .stk-invest, .nsh-btn.gft-claim) { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+/* Desabilitado (sem pontos, sem dinheiro…): apagado, sem efeito de clique. */
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .gft-claim):disabled { opacity: .45 !important; filter: grayscale(.6) !important; cursor: default; }
+.game-root .win-window .mkt2-btn--danger { color: var(--pb-dex-red-ink) !important; }
+.game-root .win-window .mkt2-btn--ghost { background: transparent !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim):hover:not(:disabled) { filter: brightness(1.12) !important; }
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-sp-back, .gft-claim):active:not(:disabled) {
+  transform: translate(2px, 2px) !important;
+  box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .win-window :is(.mkt2-side-btn, .mkt2-viewbtn).on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .win-window :is(button, [role="button"]):focus-visible { outline: 2px solid var(--pb-focus) !important; outline-offset: 3px; }
+
+/* Etiquetas e chips. */
+.game-root .win-window :is(.mkt2-badge, .mkt2-pill, .brd-chip, .nsh-chip, .qt-kind, .qt-reward, .team-active-tag, .brd-parent-tag) {
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  text-shadow: none !important;
+  font-family: var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .pp-type { border-radius: 0 !important; box-shadow: var(--pb-frame-ink) !important; text-shadow: none !important; }
+
+/* Títulos de seção. */
+.game-root .win-window :is(.mkt2-sechead, .brd-col-head, .stk-kills-h, .brd-box-title, .brd-bonus-title, .brd-inc-title) {
+  background: none !important;
+  border: 0 !important;
+  border-bottom: 2px solid var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  text-shadow: none !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+
+/* Barras de progresso: trilho escuro com moldura, preenchimento em segmentos amarelos (verde quando completa). */
+.game-root .win-window :is(.stk-prog, .qt-bar, .qt-goal-bar, .brd-meter-track, .dex-stat-bar) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-bar-track) !important;
+  box-shadow: 0 0 0 2px var(--pb-border) !important;
+}
+.game-root .win-window :is(.stk-prog-fill, .qt-bar > *, .qt-goal-bar > *, .brd-meter-track > *, .dex-stat-bar > *) {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important;
+}
+.game-root .win-window :is(.stk-prog-spark, .stk-prog-ticks) { display: none !important; }
+
+/* ---------- Mercado Global (todas as abas) ---------- */
+.game-root .mkt2-window :is(.mkt2-tabs, .mkt2-foot, .mkt2-toolbar, .mkt2-side) {
+  background: var(--pb-surface) !important;
+  border-color: var(--pb-shadow-ink) !important;
+  box-shadow: none !important;
+}
+.game-root .mkt2-window .mkt2-tabs { border-bottom: 2px solid var(--pb-shadow-ink) !important; }
+.game-root .mkt2-window .mkt2-foot { border-top: 2px solid var(--pb-shadow-ink) !important; }
+.game-root .mkt2-window :is(.mkt2-search, .mkt2-select, .mkt2-fnum) { border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important; }
+.game-root .mkt2-window .mkt2-viewtoggle { border: 0 !important; border-radius: 0 !important; background: var(--pb-surface) !important; box-shadow: var(--pb-frame-border) !important; }
+/* A busca é um contêiner com moldura: o campo dentro dele fica sem moldura própria (senão vira borda dupla). */
+.game-root .mkt2-window .mkt2-search input { background: transparent !important; box-shadow: none !important; }
+/* Cards dos anúncios. */
+.game-root .mkt2-window :is(.mkt2-card, .mkt2-sp-card, .mkt2-row, .mkt2-trow, .mkt2-details, .mkt2-statcell, .mkt-summary) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  transform: none !important;
+  animation: none !important;
+}
+.game-root .mkt2-window :is(.mkt2-card, .mkt2-sp-card)::before { display: none !important; }
+.game-root .mkt2-window :is(.mkt2-card, .mkt2-sp-card, .mkt2-row, .mkt2-trow).clickable:hover,
+.game-root .mkt2-window :is(.mkt2-card, .mkt2-sp-card, .mkt2-row, .mkt2-trow):hover { background: var(--pb-surface-raised) !important; }
+.game-root .mkt2-window .mkt2-card.sel { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .mkt2-window .mkt2-card.own { box-shadow: 0 -2px 0 0 var(--pb-poke-blue), 0 2px 0 0 var(--pb-poke-blue), -2px 0 0 0 var(--pb-poke-blue), 2px 0 0 0 var(--pb-poke-blue), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .mkt2-window .mkt2-card-art { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important; }
+.game-root .mkt2-window .mkt2-card-art :is(img, canvas) { transform: none !important; image-rendering: pixelated; }
+.game-root .mkt2-window :is(.mkt2-card-name, .mkt2-row-name, .mkt2-sp-name) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .mkt2-window .mkt2-card-name.below { color: var(--pb-dex-red-ink) !important; }
+.game-root .mkt2-window :is(.mkt2-card-meta, .mkt2-row-meta, .mkt2-sp-min, .mkt2-sp-count, .mkt2-statcell-k, .mkt2-foot-count) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .mkt2-window .mkt2-card-foot { border-top: 2px solid var(--pb-surface-raised) !important; }
+.game-root .mkt2-window .mkt2-price { text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+/* Itens e Pokémon para anunciar. */
+.game-root .mkt2-window :is(.mkt-tile, .mkt-ptile) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+}
+.game-root .mkt2-window :is(.mkt-tile, .mkt-ptile):is(.on, .sel, .active) { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .mkt2-window :is(.mkt-tile-lv, .mkt-tile-qty) { text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .mkt2-window :is(.mkt-pick, .mkt2-results) { background: var(--pb-screen) !important; border-radius: 0 !important; box-shadow: var(--pb-shadow-bevel) !important; }
+
+/* ---------- Mercado › Anunciar: itens e Pokémon numa tela só (market-plus.js) ----------
+   No .mkt-sellform os dois formulários do jogo são irmãos, nesta ordem:
+     título, busca, grade, selecionado, preço/moeda, total, botão   (itens)
+     título, busca, grade .mkt-pick-pk, selecionado, preço/moeda, total, botão   (Pokémon)
+   A alternância (#pb-sell-kind) marca data-pb-kind; mostramos só um formulário e arrumamos numa grade:
+     busca / grade grande / faixa com selecionado, preço, total e o botão Anunciar à direita. */
+#pb-sell-kind { display: flex; gap: 8px; margin: 4px 2px 12px; }
+#pb-sell-kind button {
+  flex: 1;
+  margin: 2px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface);
+  color: var(--pb-ink-muted);
+  box-shadow: var(--pb-frame-border);
+  font: 600 16px/22px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-sell-kind button:hover { color: var(--pb-ink); background: var(--pb-surface-raised); }
+#pb-sell-kind button[aria-pressed="true"] { color: var(--pb-ink); background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus); }
+#pb-sell-kind button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+
+.game-root .mkt-sellform[data-pb-kind] {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-areas: "fbar fbar" "pick pick" "picked btn" "fld btn" "sum btn";
+  gap: 10px 16px !important;
+  align-items: start;
+}
+.game-root .mkt-sellform[data-pb-kind] > * { grid-column: 1 / -1; margin: 0 !important; }
+.game-root .mkt-sellform[data-pb-kind] > .mkt2-sechead { display: none !important; }  /* a alternância já diz o que é */
+.game-root .mkt-sellform[data-pb-kind] > .mk-fbar { grid-area: fbar; }
+/* Grade cresce com a janela, mas deixa a faixa de preço e o botão à vista (sem rolar) em telas menores. */
+.game-root .mkt-sellform[data-pb-kind] > .mkt-pick { grid-area: pick; height: clamp(160px, calc(100vh - 600px), 420px) !important; max-height: none !important; align-content: start !important; }
+.game-root .mkt-sellform[data-pb-kind] > .mkt-picked { grid-area: picked; color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; }
+.game-root .mkt-sellform[data-pb-kind] > .mkt-fldrow { grid-area: fld; }
+.game-root .mkt-sellform[data-pb-kind] > .mkt-summary { grid-area: sum; }
+.game-root .mkt-sellform[data-pb-kind] > button { grid-area: btn; align-self: stretch; min-height: 96px; font-size: 18px !important; }
+/* Mostra só um dos dois formulários. Partes do Pokémon: a grade .mkt-pick-pk, o que vem depois dela,
+   e a busca e o título logo antes dela. */
+.game-root .mkt-sellform[data-pb-kind="item"] > :is(.mkt-pick-pk, .mkt-pick-pk ~ *, .mk-fbar:has(+ .mkt-pick-pk)) { display: none !important; }
+.game-root .mkt-sellform[data-pb-kind="pokemon"] > :not(.mkt-pick-pk, .mkt-pick-pk ~ *, .mk-fbar:has(+ .mkt-pick-pk)) { display: none !important; }
+
+/* ---------- Auto-Helper (modal) ---------- */
+.game-root .ah-modal {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .ah-modal .ah-body { background: var(--pb-screen) !important; }
+/* O modal é estreito (~236px): Press Start 2P de 16px quebraria o título em duas linhas. */
+.game-root .ah-modal .ah-modal-title > span { font: 700 18px/24px var(--pb-font-body) !important; }
+.game-root .ah-modal .ah-row {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+/* Ligado: faixa verde à esquerda. */
+.game-root .ah-modal .ah-row.on { box-shadow: inset 4px 0 0 0 var(--pb-success), var(--pb-frame-border) !important; }
+.game-root .ah-modal .ah-label { color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; }
+.game-root .ah-modal :is(.ah-hint, .ah-field > span, .ah-field-col > span) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .ah-modal .ah-sub { background: transparent !important; border: 0 !important; }
+.game-root :is(.ah-modal, .cap-panel) .cap-chip { border-radius: 0 !important; background: var(--pb-surface) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root :is(.ah-modal, .cap-panel) .cap-chip.on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+
+/* ---------- Streak Points ---------- */
+.game-root .stk-window .stk-stat {
+  clip-path: none !important;
+  filter: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .stk-window .stk-stat::before { display: none !important; }
+.game-root .stk-window .stk-stat b { color: var(--pb-ink) !important; -webkit-text-fill-color: currentColor !important; background: none !important; text-shadow: none !important; font: 400 16px/24px var(--pb-font-pixel) !important; }
+.game-root .stk-window .stk-stat.has b { color: var(--pb-pika-yellow) !important; }
+.game-root .stk-window :is(.stk-lbl, .stk-note, .stk-prog-label, .stk-prog-val, .stk-tdesc, .stk-kcount) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .stk-window .stk-track {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  filter: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .stk-window .stk-track::before { display: none !important; }
+.game-root .stk-window :is(.stk-tname, .stk-tpts, .stk-tbonus, .stk-kname) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .stk-window .stk-kcell {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .stk-window .stk-kcell.top1 { box-shadow: var(--pb-frame-focus) !important; }
+
+/* ---------- Breeding ---------- */
+.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc, .brd-analysis-empty, .brd-steps, .brd-stones) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .brd-window :is(.brd-parent, .brd-egg-slot, .brd-box-poke, .brd-stone-item, .brd-bonus-item, .brd-cost-item) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+}
+.game-root .brd-window :is(.brd-parent, .brd-egg-slot, .brd-box-poke, .brd-stone-item)::before { display: none !important; }
+.game-root .brd-window :is(.brd-box-poke, .brd-parent).on,
+.game-root .brd-window .brd-box-poke:is(.sel, .picked) { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window :is(.brd-parent-name, .brd-box-name, .brd-stone-name, .brd-step-tx, .brd-meter-label, .brd-bonus-txt) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .brd-window :is(.brd-box-meta, .brd-hint, .brd-meter-val, .brd-parent-lv) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .brd-window :is(.brd-balance, .brd-bal) { border-radius: 0 !important; box-shadow: var(--pb-frame-ink) !important; background: var(--pb-dex-red-deep) !important; color: var(--pb-on-red) !important; }
+.game-root .brd-window :is(.brd-link, .brd-link-core, .brd-mystery-orb) { filter: none !important; }
+/* Cantoneiras e linhas douradas das colunas (pseudo-elementos do jogo). */
+.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc)::before,
+.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc)::after,
+.game-root .brd-window .brd-col-head::after { display: none !important; }
+
+/* ---------- Equipe ---------- */
+.game-root .team-window .team-slot {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(to top, color-mix(in srgb, var(--type, var(--pb-border)) 55%, transparent) 0 14px, var(--pb-screen) 14px) !important;
+  box-shadow: var(--pb-frame-border), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  transform: none !important;
+}
+.game-root .team-window .team-slot.empty { background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; opacity: .6; }
+.game-root .team-window .team-slot.on { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .team-window .team-pit {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: linear-gradient(to top, color-mix(in srgb, var(--type, var(--pb-border)) 55%, transparent) 0 28px, var(--pb-screen) 28px) !important;
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important;
+}
+.game-root .team-window .team-pit::before { display: none !important; }
+/* Sprite grande: telinha quadrada com moldura na cor do tipo, sem brilho. */
+.game-root .team-window .team-sprite {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: 0 -2px 0 0 var(--type, var(--pb-border)), 0 2px 0 0 var(--type, var(--pb-border)), -2px 0 0 0 var(--type, var(--pb-border)), 2px 0 0 0 var(--type, var(--pb-border)), var(--pb-shadow-bevel) !important;
+}
+.game-root .team-window .team-active-tag { background: var(--pb-surface) !important; color: var(--pb-ink) !important; border: 0 !important; }
+.game-root .team-window :is(.team-name, .team-lvl, .team-id, .team-count, .dex-stat-l, .dex-stat-v) { text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .team-window .team-name { color: var(--pb-ink) !important; }
+.game-root .team-window .team-count { color: var(--pb-on-red) !important; }
+.game-root .team-window :is(.team-elem, .team-sprite) { filter: none !important; }
+
+/* ---------- Missões (Quests / Tasks / Dailys) ---------- */
+.game-root .qt-window :is(.qt-task, .qt-goal, .qt-npc, .qt-strip, .qt-foot) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .qt-window :is(.qt-task, .qt-goal, .qt-npc, .qt-strip)::before { display: none !important; }
+.game-root .qt-window .qt-goal-sprite { border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important; filter: none !important; }
+.game-root .qt-window :is(.qt-gname, .qt-goal-top, .qt-ready-v) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .qt-window :is(.qt-goal-meta, .qt-gprog, .qt-consume) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .qt-window .qt-goal-check { color: var(--pb-success) !important; }
+.game-root .qt-window .qt-claimed { color: var(--pb-ink-muted) !important; filter: none !important; }
+.game-root .qt-window :is(.qt-rw-xp, .qt-rw-cash) { text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .qt-window .qt-city-dot { border-radius: var(--pb-radius-dot) !important; box-shadow: none !important; }
+
+/* ---------- Perfil (.pf-window: moldura própria, fora do .win-window) ---------- */
+.game-root .pf-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.game-root .pf-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .pf-window::after { display: none !important; }
+.game-root .pf-window .pf-head {
+  position: relative;
+  margin: 0 !important;
+  padding-left: 46px !important;
+  padding-bottom: 4px !important;
+  border: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+}
+.game-root .pf-window .pf-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.game-root .pf-window :is(.pf-hex-bg, .pf-hex-rail, .pf-hex-cap, .pf-gem) { display: none !important; }
+.game-root .pf-window .pf-title {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .pf-window .pf-x { background: transparent !important; border: 0 !important; color: var(--pb-on-red) !important; box-shadow: none !important; }
+.game-root .pf-window .pf-scroll { background: var(--pb-screen) !important; }
+.game-root .pf-window .pf-avatar {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+}
+.game-root .pf-window .pf-name { color: var(--pb-ink) !important; -webkit-text-fill-color: currentColor !important; background: none !important; text-shadow: none !important; font: 600 20px/24px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .pf-window :is(.pf-meta, .pf-row-l, .pf-xpbar-txt) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .pf-window .pf-row-v { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .pf-window .pf-row { border-radius: 0 !important; background: transparent !important; border-bottom: 2px solid var(--pb-surface) !important; }
+.game-root .pf-window :is(.pf-chip, .pf-vip-badge, .pf-level) { border: 0 !important; border-radius: 0 !important; box-shadow: var(--pb-frame-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .pf-window .pf-chip { background: var(--pb-surface) !important; color: var(--pb-ink) !important; }
+.game-root .pf-window .pf-vip-badge { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .pf-window .pf-outfits-btn {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  text-shadow: none !important;
+  filter: none !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+.game-root .pf-window .pf-outfits-btn::before,
+.game-root .pf-window .pf-outfits-btn::after { display: none !important; }
+.game-root .pf-window .pf-section-title {
+  background: none !important;
+  border: 0 !important;
+  border-bottom: 2px solid var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+}
+.game-root .pf-window .pf-section-title::after { display: none !important; }
+.game-root .pf-window .pf-header { border-bottom-color: var(--pb-surface-raised) !important; }
+.game-root .pf-window .pf-header::after { display: none !important; }
+/* Texto por cima dos segmentos: sombra dura de 1px (sem desfoque) para ler bem. */
+.game-root .pf-window .pf-xpbar-txt { color: var(--pb-ink) !important; text-shadow: 1px 1px 0 var(--pb-shadow-ink), -1px -1px 0 var(--pb-shadow-ink) !important; }
+.game-root .pf-window .pf-bar { border: 0 !important; border-radius: 0 !important; background: var(--pb-bar-track) !important; box-shadow: 0 0 0 2px var(--pb-border) !important; }
+.game-root .pf-window :is(.pf-bar-fill, .pf-fishbar-fill) { border-radius: 0 !important; box-shadow: none !important; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important; }
+
+/* ---------- Pokédex: ficha do Pokémon (detalhe dentro da janela) ---------- */
+.game-root .dex-window .dex-back {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  text-shadow: none !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+}
+.game-root .dex-window .dex-elem { opacity: .08 !important; filter: grayscale(1) !important; }
+.game-root .dex-window .dex-detail-no { color: var(--pb-ink-muted) !important; font: 400 8px/12px var(--pb-font-pixel) !important; }
+.game-root .dex-window .dex-detail-name {
+  color: var(--pb-ink) !important;
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .dex-window :is(.dex-rarity, .dex-price) { text-shadow: none !important; font: 500 12px/16px var(--pb-font-body) !important; }
+.game-root .dex-window .dex-price { color: var(--pb-ink-muted) !important; }
+.game-root .dex-window :is(.dex-unlock, .dex-capbonus) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dex-window :is(.dex-unlock, .dex-capbonus)::before { display: none !important; }
+.game-root .dex-window .dex-caught-tag {
+  border-radius: 0 !important;
+  padding: 0 6px !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  text-shadow: none !important;
+  font: 600 12px/16px var(--pb-font-body) !important;
+}
+.game-root .dex-window .dex-caught-tag:not(.no) { background: var(--pb-success) !important; color: var(--pb-on-success) !important; }
+.game-root .dex-window .dex-caught-tag.no { background: var(--pb-surface-raised) !important; color: var(--pb-ink-muted) !important; }
+.game-root .dex-window :is(.dex-unlock-kills, .dex-claim-locked, .dex-capbonus-req, .dex-capbonus-hint) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .dex-window :is(.dex-capbonus-title, .dex-capbonus-val) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .dex-window .dex-capbonus-now { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font: 400 16px/24px var(--pb-font-pixel) !important; }
+/* Barras: desbloqueio (até 100 derrotas) e bônus de captura, em segmentos. */
+.game-root .dex-window :is(.dex-unlock-bar, .dex-capbonus-bar) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-bar-track) !important;
+  box-shadow: 0 0 0 2px var(--pb-border) !important;
+}
+.game-root .dex-window :is(.dex-unlock-bar, .dex-capbonus-bar) > i {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important;
+}
+.game-root .dex-window .dex-capbonus-gem { border-radius: 0 !important; transform: translateX(-50%) !important; box-shadow: var(--pb-frame-ink) !important; filter: none !important; }
+.game-root .dex-window .dex-sec-title {
+  background: none !important;
+  border: 0 !important;
+  border-bottom: 2px solid var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  text-shadow: none !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .dex-window .dex-sec-title::after { display: none !important; }
+.game-root .dex-window :is(.dex-stat-l, .dex-stat-v) { text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+
+/* ---------- Clicáveis nossos: "Derrotados" no Hunt Analyzer e linhas do Histórico do Mercado ---------- */
+.game-root .ha-window .ha-card[data-pb-link] { position: relative; cursor: pointer; }
+.game-root .ha-window .ha-card[data-pb-link]:hover { box-shadow: var(--pb-frame-focus) !important; }
+.game-root .ha-window .ha-card[data-pb-link]::after {
+  content: "Ver ficha ›";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: var(--pb-poke-blue);
+  font: 500 12px/16px var(--pb-font-body);
+}
+.game-root .mkt2-window[data-pb-history] :is(.mkt2-row, .mkt2-trow:not(.mkt2-trow--head), .mkt2-grid > .mkt2-card) { cursor: pointer; }
+.game-root .mkt2-window[data-pb-history] :is(.mkt2-row, .mkt2-trow:not(.mkt2-trow--head), .mkt2-grid > .mkt2-card):hover { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+
+/* ---------- Card de informação do PokeBoard (pb-card.js) ---------- */
+#pb-card-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147482500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 7, 10, .6);
+}
+#pb-card-overlay[hidden] { display: none; }
+#pb-card-overlay * { box-sizing: border-box; }
+#pb-card {
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink);
+  color: var(--pb-ink);
+  font: 500 14px/18px var(--pb-font-body);
+}
+#pb-card .pbc-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px 4px 46px;
+  background: var(--pb-dex-red);
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep);
+}
+#pb-card .pbc-lens {
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+}
+#pb-card h2 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pb-on-red); font: 400 16px/24px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-card .pbc-x { border: 0; background: none; color: var(--pb-on-red); font: 600 22px/1 var(--pb-font-body); cursor: pointer; padding: 2px 6px; }
+#pb-card .pbc-x:focus-visible { outline: 2px solid var(--pb-on-red); outline-offset: 2px; }
+#pb-card .pbc-screen { padding: 12px; overflow: auto; background: var(--pb-screen); box-shadow: var(--pb-shadow-bevel); }
+#pb-card .pbc-top { display: flex; gap: 12px; align-items: flex-start; }
+/* Telinha do sprite com "chão" em degraus na cor do primeiro tipo (55%). */
+#pb-card .pbc-sprite {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin: 2px;
+  background: linear-gradient(to top, color-mix(in srgb, var(--pbc-t) 55%, transparent) 0 12px, color-mix(in srgb, var(--pbc-t) 30%, transparent) 12px 18px, var(--pb-surface) 18px);
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel);
+}
+#pb-card .pbc-sprite img { image-rendering: pixelated; max-width: 88px; max-height: 88px; }
+#pb-card .pbc-sprite b { color: var(--pb-ink-muted); font: 400 24px/32px var(--pb-font-pixel); }
+#pb-card .pbc-id { flex: 1; min-width: 0; }
+#pb-card .pbc-types { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 2px 8px; }
+#pb-card .pbc-chip { padding: 1px 6px; box-shadow: var(--pb-frame-ink); font: 600 12px/16px var(--pb-font-body); }
+#pb-card .pbc-shiny { color: var(--pb-pika-yellow); font: 600 12px/16px var(--pb-font-body); }
+#pb-card .pbc-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; }
+#pb-card .pbc-facts > div { display: contents; }
+#pb-card .pbc-facts dt { color: var(--pb-ink-muted); font: 500 12px/18px var(--pb-font-body); }
+#pb-card .pbc-facts dd { margin: 0; color: var(--pb-ink); font: 600 14px/18px var(--pb-font-body); white-space: nowrap; }
+#pb-card .pbc-facts--row { grid-template-columns: repeat(2, auto 1fr); }
+#pb-card .pbc-sec { margin-top: 14px; }
+#pb-card .pbc-sec h3 {
+  display: flex;
+  justify-content: space-between;
+  margin: 0 0 8px;
+  padding-bottom: 2px;
+  border-bottom: 2px solid var(--pb-surface-raised);
+  color: var(--pb-ink);
+  font: 600 14px/18px var(--pb-font-body);
+}
+#pb-card .pbc-total { color: var(--pb-ink-muted); }
+#pb-card .pbc-bar-track { display: block; height: 10px; margin: 8px 2px 2px; background: var(--pb-bar-track); box-shadow: 0 0 0 2px var(--pb-border); }
+#pb-card .pbc-bar-track i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px); }
+#pb-card .pbc-bar-track.is-full i { background: repeating-linear-gradient(90deg, var(--pb-bar-full) 0 6px, transparent 6px 8px); }
+#pb-card .pbc-stats { display: grid; grid-template-columns: 34px 36px 1fr; align-items: center; gap: 4px 8px; }
+#pb-card .pbc-stats .pbc-bar-track { margin: 0 2px; }
+#pb-card .pbc-sl { color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
+#pb-card .pbc-sv { text-align: right; font: 600 14px/18px var(--pb-font-body); }
+#pb-card .pbc-mini { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
+#pb-card .pbc-mini b { color: var(--pb-ink); }
+#pb-card .pbc-ok { color: var(--pb-success); }
+#pb-card .pbc-claim { color: var(--pb-pika-yellow); }
+#pb-card :is(.pbc-empty, .pbc-note) { margin: 12px 0 0; color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
+
+/* ---------- Atalho "Mercado · Mark" (game-layout.js) ----------
+   Botão nosso na barra de telas abre um card com Mercado e Mark; escolher faz o caminho pelos botões do jogo
+   (exceção autorizada, ver game-layout.js) e mostra cada passo. */
+#pb-quick-btn {
+  flex: none;
+  height: 32px;
+  margin: 0 4px 0 8px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink);
+  font: 600 14px/32px var(--pb-font-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+#pb-quick-btn:hover, #pb-quick-btn[aria-expanded="true"] { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
+#pb-quick-btn:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+
+#pb-quick-card {
+  position: fixed;
+  z-index: 65;                       /* acima do Auto-Helper (60) e da barra (10) */
+  top: calc(var(--pb-dock-h, 52px) + 10px);
+  right: 16px;
+  width: 300px;
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink);
+  color: var(--pb-ink);
+  font: 500 14px/18px var(--pb-font-body);
+}
+#pb-quick-card[hidden] { display: none; }
+#pb-quick-card .pbq-bar { position: relative; display: flex; align-items: center; min-height: 40px; padding: 0 8px 4px 42px; background: var(--pb-dex-red); box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep); }
+#pb-quick-card .pbq-lens { position: absolute; left: 12px; top: calc(50% - 2px); width: 18px; height: 18px; border-radius: var(--pb-radius-ball); background: var(--pb-poke-blue); box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink); transform: translateY(-50%); }
+#pb-quick-card h2 { flex: 1; margin: 0; color: var(--pb-on-red); font: 400 8px/12px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-quick-card .pbq-x { border: 0; background: none; color: var(--pb-on-red); font: 600 20px/1 var(--pb-font-body); cursor: pointer; }
+#pb-quick-card .pbq-screen { padding: 12px; background: var(--pb-screen); box-shadow: var(--pb-shadow-bevel); }
+#pb-quick-card .pbq-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#pb-quick-card .pbq-opt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 64px;
+  margin: 2px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink);
+  text-align: left;
+  cursor: pointer;
+}
+#pb-quick-card .pbq-opt:hover:not(:disabled) { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
+#pb-quick-card .pbq-opt:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink); }
+#pb-quick-card .pbq-opt:disabled { opacity: .5; cursor: default; }
+#pb-quick-card .pbq-opt b { font: 600 16px/22px var(--pb-font-body); }
+#pb-quick-card .pbq-opt small { color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
+#pb-quick-card :is(.pbq-opt, .pbq-x, .pbq-cancel):focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-quick-card .pbq-status { margin: 10px 2px 0; color: var(--pb-ink); font: 500 12px/16px var(--pb-font-body); }
+#pb-quick-card .pbq-status:empty { display: none; }
+#pb-quick-card .pbq-cancel { margin: 8px 2px 0; padding: 2px 10px; border: 0; border-radius: 0; background: transparent; color: var(--pb-ink); box-shadow: var(--pb-frame-border); font: 600 12px/16px var(--pb-font-body); cursor: pointer; }
+#pb-quick-card .pbq-cancel[hidden] { display: none; }
+
+/* ---------- Hunt Analyzer ao lado do Auto-Helper ----------
+   É o próprio botão da barra de telas (data-guide="dock-analyzer"), tirado da barra e fixado à esquerda do
+   Auto-Helper: clicar continua abrindo a janela pelo jogo. A barra perde esse ícone (sem vão). */
+.game-root .game-dock .dock-btn[data-guide="dock-analyzer"] {
+  position: fixed !important;
+  top: var(--pb-top) !important;
+  right: calc(16px + 190px + 10px) !important;
+  z-index: 60;
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: 35px !important;
+  padding: 0 12px 0 6px !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 16px/22px var(--pb-font-body) !important;
+  white-space: nowrap;
+}
+.game-root .game-dock .dock-btn[data-guide="dock-analyzer"]::after { content: "Hunt Analyzer"; }
+.game-root .game-dock .dock-btn[data-guide="dock-analyzer"] img { width: 22px !important; height: 22px !important; }
+.game-root .game-dock .dock-btn[data-guide="dock-analyzer"]:hover { filter: brightness(1.12) !important; box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .game-dock .dock-btn[data-guide="dock-analyzer"].on { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }

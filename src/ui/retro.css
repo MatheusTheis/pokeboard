@@ -1,0 +1,59 @@
+/* PokeBoard Retro — componentes .pr-* (ver docs/design-system.md). Usa os tokens de tokens.css.
+   Pixel honesto: sem cantos arredondados nem desfoque; moldura de pixel = quatro sombras (--pb-frame-*). */
+
+/* ---------- lente e LEDs da carcaça ---------- */
+.pr-lens {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+}
+.pr-leds { display: inline-flex; gap: 4px; }
+.pr-led {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--pb-radius-dot);
+  box-shadow: 0 0 0 2px var(--pb-shadow-ink);
+}
+.pr-led--red { background: #FF5A4E; }
+.pr-led--yellow { background: var(--pb-pika-yellow); }
+.pr-led--green { background: var(--pb-success); }
+
+/* ---------- botão ---------- */
+.pr-btn {
+  margin: 2px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-dex-red);
+  color: var(--pb-on-red);
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink);
+  font: 600 14px/18px var(--pb-font-body);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pr-btn:active { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink); }
+.pr-btn--secondary { background: var(--pb-surface-raised); color: var(--pb-ink); }
+.pr-btn--ghost { background: transparent; color: var(--pb-ink); box-shadow: var(--pb-frame-border); }
+.pr-btn--ghost:active { box-shadow: var(--pb-frame-border); }
+.pr-btn--icon { min-width: 24px; padding: 2px 4px; }
+.pr-btn[aria-pressed="true"] { background: var(--pb-surface-raised); color: var(--pb-ink); box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
+.pr-btn:hover { filter: brightness(1.12); }
+
+/* ---------- anel de foco do teclado: 2px por fora da moldura ---------- */
+.pr-btn:focus-visible,
+.pr-focusable:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+
+/* ---------- campo ---------- */
+.pr-input {
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-screen);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel);
+  font: 500 14px/18px var(--pb-font-body);
+  padding: 1px 6px;
+}
+.pr-input:focus { outline: none; box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel); }

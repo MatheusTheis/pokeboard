@@ -1,0 +1,101 @@
+/* Pixelify Sans (o jogo já carrega Press Start 2P; aqui vem junto para o shell). Licença OFL. */
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&family=Press+Start+2P&display=swap');
+
+/* PokeBoard Retro — tokens do design system (ver docs/design-system.md).
+   Tudo com prefixo --pb- porque este arquivo também é injetado no jogo, que já usa --ink, --gold, --muted…
+   Tema noite é o padrão; dia via data-theme="dia" no <html>. Não troque cores sem recalcular o contraste (4,5:1). */
+
+:root, [data-theme="noite"] {
+  --pb-screen: #12161E;
+  --pb-surface: #1C2230;
+  --pb-surface-raised: #283044;
+  --pb-border: #66769A;
+  --pb-shadow-ink: #05070A;
+  --pb-ink: #F4F0E2;
+  --pb-ink-muted: #A9B1C2;
+  --pb-dex-red: #D62B25;
+  --pb-dex-red-deep: #8A1117;
+  --pb-dex-red-ink: #FF7A6E;
+  --pb-on-red: #FFFFFF;
+  --pb-pika-yellow: #FFCB05;
+  --pb-on-yellow: #191920;
+  --pb-poke-blue: #7FA6F5;
+  --pb-success: #62C96F;
+  --pb-on-success: #191920;
+  --pb-focus: var(--pb-pika-yellow);
+  --pb-bar-track: var(--pb-shadow-ink);
+  --pb-bar-fill: var(--pb-pika-yellow);
+  --pb-bar-full: #62C96F;
+  --pb-chip-ink-dark: #191920;
+  --pb-chip-ink-light: #FFFFFF;
+
+  --pb-shadow-hard: 4px 4px 0 0 #05070A;
+  --pb-shadow-press: 2px 2px 0 0 #05070A;
+  --pb-shadow-bevel: inset 2px 2px 0 0 rgba(255,255,255,0.10), inset -2px -2px 0 0 rgba(0,0,0,0.35);
+}
+
+[data-theme="dia"] {
+  --pb-screen: #E9E5CC;
+  --pb-surface: #F7F4E4;
+  --pb-surface-raised: #DDD8BC;
+  --pb-border: #191920;
+  --pb-shadow-ink: #191920;
+  --pb-ink: #191920;
+  --pb-ink-muted: #4C5260;
+  --pb-dex-red: #C81E1E;
+  --pb-dex-red-deep: #7A0E12;
+  --pb-dex-red-ink: #A81616;
+  --pb-poke-blue: #2C58B0;
+  --pb-success: #22662D;
+  --pb-on-success: #FFFFFF;
+  --pb-focus: var(--pb-poke-blue);
+
+  --pb-shadow-hard: 4px 4px 0 0 #191920;
+  --pb-shadow-press: 2px 2px 0 0 #191920;
+}
+
+/* Moldura de pixel: quatro sombras em vez de borda, para os cantos ficarem chanfrados (2px).
+   Declarada junto do tema para pegar as cores certas no dia e na noite. */
+:root, [data-theme] {
+  --pb-frame-border: 0 -2px 0 0 var(--pb-border), 0 2px 0 0 var(--pb-border), -2px 0 0 0 var(--pb-border), 2px 0 0 0 var(--pb-border);
+  --pb-frame-ink: 0 -2px 0 0 var(--pb-shadow-ink), 0 2px 0 0 var(--pb-shadow-ink), -2px 0 0 0 var(--pb-shadow-ink), 2px 0 0 0 var(--pb-shadow-ink);
+  --pb-frame-focus: 0 -2px 0 0 var(--pb-focus), 0 2px 0 0 var(--pb-focus), -2px 0 0 0 var(--pb-focus), 2px 0 0 0 var(--pb-focus);
+}
+
+:root {
+  /* Cores de tipo: iguais nos dois temas. Texto do chip: escuro, menos Lutador, Venenoso, Fantasma, Dragão e Sombrio. */
+  --pb-type-normal: #A8A77A;
+  --pb-type-fire: #EE8130;
+  --pb-type-water: #6390F0;
+  --pb-type-electric: #F7D02C;
+  --pb-type-grass: #7AC74C;
+  --pb-type-ice: #96D9D6;
+  --pb-type-fighting: #C22E28;
+  --pb-type-poison: #A33EA1;
+  --pb-type-ground: #E2BF65;
+  --pb-type-flying: #A98FF3;
+  --pb-type-psychic: #F95587;
+  --pb-type-bug: #A6B91A;
+  --pb-type-rock: #B6A136;
+  --pb-type-ghost: #735797;
+  --pb-type-dragon: #6F35FC;
+  --pb-type-dark: #705746;
+  --pb-type-steel: #B7B7CE;
+  --pb-type-fairy: #D685AD;
+
+  /* Tipografia (Google Fonts, OFL). Press Start 2P só em 8, 16 ou 24 px e em textos curtos. */
+  --pb-font-pixel: "Press Start 2P", "Courier New", monospace;
+  --pb-font-body: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif;
+
+  /* Espaço em passos de 4 px; traços de pixel; sem cantos arredondados. */
+  --pb-space-1: 4px;
+  --pb-space-2: 8px;
+  --pb-space-3: 12px;
+  --pb-space-4: 16px;
+  --pb-space-6: 24px;
+  --pb-stroke-thin: 2px;
+  --pb-stroke-thick: 4px;
+  --pb-radius-none: 0;
+  --pb-radius-ball: 50%;
+  --pb-radius-dot: 2px;
+}

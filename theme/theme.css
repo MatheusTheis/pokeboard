@@ -1,0 +1,38 @@
+/* =====================================================================
+   SEU TEMA — este arquivo é aplicado por cima do jogo em todos os painéis.
+   Salve e o visual muda na hora, sem recarregar.
+
+   Como descobrir o que estilizar:
+   1. No cabeçalho de um painel, clique em "Inspecionar".
+   2. Use a setinha do DevTools (Ctrl+Shift+C) e clique no elemento do jogo.
+   3. Copie a classe ou o id dele e escreva a regra aqui.
+   Dica: prefira classes estáveis; nomes com hash (ex.: .css-1x2y3z) mudam a cada atualização.
+   Se uma regra não pegar, aumente a especificidade ou use !important.
+
+   Este arquivo não mexe nos botões do jogo, só na aparência.
+   ===================================================================== */
+
+/* Paleta base: troque à vontade */
+:root {
+  --meu-fundo: #08131B;
+  --meu-painel: #0F1E28;
+  --meu-ouro: #D4AE5A;
+  --meu-texto: #E6DFC8;
+}
+
+/* Barras de rolagem mais discretas */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #2A3F4B; border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Exemplos para completar depois de inspecionar (descomente e ajuste o seletor):
+
+.SELETOR-DA-JANELA-POKEDEX {
+  background: var(--meu-painel) !important;
+  border-color: var(--meu-ouro) !important;
+}
+
+.SELETOR-DO-CHAT {
+  opacity: .85;
+}
+*/

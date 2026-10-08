@@ -1,0 +1,1033 @@
+/* =====================================================================
+   PokeBoard — visual do jogo (injetado em todos os painéis; salvar recarrega na hora).
+   Só aparência e posição: os botões continuam sendo os do jogo.
+
+   O CSS injetado perde do CSS do jogo em empate, por isso as propriedades de layout usam !important.
+   O jogo atualiza 1–2 vezes por semana: se algo parar de pegar, confira os seletores abaixo
+   (mapa do DOM em %APPDATA%\poke-board\debug\telas\*.txt, gravado com PB_RECORD=1).
+
+   Seletores do jogo usados aqui:
+     .game-root                 raiz do jogo (fixed, tela inteira)
+     .game-dock / .dock-scroll  barra de telas (30 botões .dock-btn com data-guide="dock-…")
+     .game-hud-tl / .phud       cartão do jogador + time (canto superior esquerdo)
+     .game-hud-tr               canto superior direito
+     .bi-wrap                   cronômetro de evento/boost (centro, abaixo da barra)
+     .ah-panel                  Auto-Helper (direita)
+     .game-toast, .bhp-panel    aviso no topo e vida do chefe (centro)
+     .cbt-tag                   etiqueta "Modo carta"
+   O jogo escala a interface com --ui-scale (transform: scale). Mantemos essa escala.
+   ===================================================================== */
+
+.game-root {
+  /* O resto do topo começa abaixo da barra de telas. --pb-dock-h é a altura real medida por
+     game-layout.js (a barra quebra em 2 linhas em painel estreito); antes da medida, a altura de 1 linha. */
+  --pb-top: calc(var(--pb-dock-h, calc(52px * var(--ui-scale, 1))) + 8px);
+}
+
+/* ---------- barra de telas: o topo inteiro, todos os ícones à vista ---------- */
+.game-root .game-dock {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  /* zoom em vez de transform: com transform a caixa não sabe que encolheu e não ocupa a largura toda. */
+  transform: none !important;
+  zoom: var(--ui-scale, 1);
+  padding: 4px 8px !important;
+  justify-content: center !important;
+}
+.game-root .game-dock::after { display: none !important; }  /* sombreado das pontas da rolagem */
+
+.game-root .dock-scroll {
+  overflow: visible !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+  flex-wrap: wrap !important;          /* só quebra linha se nem encolhendo couber */
+  justify-content: center !important;
+  row-gap: 2px;
+}
+/* Base 30 px para caber numa linha; cresce até os 40 px originais quando sobra espaço. */
+.game-root .dock-btn {
+  flex: 1 1 30px !important;
+  min-width: 30px !important;
+  max-width: 40px !important;
+}
+.game-root .dock-btn[data-guide="dock-seasonpass"] { flex-basis: 44px !important; max-width: 54px !important; }
+.game-root .dock-btn img { max-width: 100% !important; object-fit: contain; }
+
+/* ---------- modo dividido: fileira de ícones grandes com rolagem ----------
+   O board marca html[data-pb-layout="grid"]. Como dá para reordenar (✎), não precisam caber todos:
+   rola com a roda do mouse (game-layout.js). Espaço em cima para os avisos (bolinha vermelha) não cortarem. */
+html[data-pb-layout="grid"] .game-root .dock-scroll {
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 8px 4px 4px !important;
+  scrollbar-width: thin;
+}
+html[data-pb-layout="grid"] .game-root .dock-btn {
+  flex: none !important;
+  width: 56px !important;
+  min-width: 56px !important;
+  max-width: none !important;
+  height: 56px !important;
+}
+html[data-pb-layout="grid"] .game-root .dock-btn img { width: 44px !important; height: 44px !important; max-width: none !important; object-fit: contain; }
+html[data-pb-layout="grid"] .game-root .dock-btn[data-guide="dock-seasonpass"] { width: 80px !important; min-width: 80px !important; }
+html[data-pb-layout="grid"] .game-root .dock-btn[data-guide="dock-seasonpass"] img { width: 72px !important; height: 36px !important; }
+
+/* ---------- ✎ no fim da barra + painel "Organizar barra" (dock-editor.js) ---------- */
+#pb-dock-edit {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0 4px 0 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink-muted);
+  box-shadow: var(--pb-frame-border);
+  font: 600 16px/1 var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-dock-edit:hover,
+#pb-dock-edit[aria-expanded="true"] { color: var(--pb-ink); box-shadow: var(--pb-frame-focus); }
+#pb-dock-edit:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+
+#pb-dock-editor {
+  position: fixed;
+  z-index: 2147482000;
+  top: calc(var(--pb-dock-h, 52px) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(920px, calc(100vw - 32px));
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink);
+  font: 500 14px/18px var(--pb-font-body);
+  color: var(--pb-ink);
+}
+#pb-dock-editor[hidden] { display: none; }
+#pb-dock-editor * { box-sizing: border-box; }
+#pb-dock-editor .pb-de-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 0 12px 4px 46px;
+  background: var(--pb-dex-red);
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep);
+}
+#pb-dock-editor .pb-de-lens {
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+}
+#pb-dock-editor h2 { flex: 1; margin: 0; color: var(--pb-on-red); font: 400 16px/24px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-dock-editor .pb-de-x { border: 0; background: none; color: var(--pb-on-red); font: 600 22px/1 var(--pb-font-body); cursor: pointer; padding: 2px 6px; }
+#pb-dock-editor .pb-de-screen { padding: 12px 14px 14px; background: var(--pb-screen); box-shadow: var(--pb-shadow-bevel); }
+#pb-dock-editor .pb-de-hint { margin: 0 0 12px; color: var(--pb-ink-muted); font: 500 14px/18px var(--pb-font-body); }
+#pb-dock-editor .pb-de-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; padding: 4px; list-style: none; }
+#pb-dock-editor .pb-de-item button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-border), 3px 3px 0 0 var(--pb-shadow-ink);
+  font: 600 12px/1 var(--pb-font-body);
+  cursor: grab;
+}
+#pb-dock-editor .pb-de-item img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+#pb-dock-editor .pb-de-item button:hover { background: var(--pb-surface-raised); }
+#pb-dock-editor .pb-de-item.is-sel button { background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
+#pb-dock-editor .pb-de-item.is-drag { opacity: .4; }
+#pb-dock-editor button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-dock-editor .pb-de-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#pb-dock-editor .pb-de-move { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px; }
+#pb-dock-editor .pb-de-move button {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink);
+  cursor: pointer;
+}
+#pb-dock-editor .pb-de-sel { color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
+#pb-dock-editor .pb-de-btn {
+  padding: 6px 14px;
+  margin: 2px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-dex-red);
+  color: var(--pb-on-red);
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink);
+  font: 600 16px/22px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-dock-editor .pb-de-btn--secondary { background: var(--pb-surface-raised); color: var(--pb-ink); }
+#pb-dock-editor .pb-de-btn--ghost { background: transparent; color: var(--pb-ink); box-shadow: var(--pb-frame-border); }
+#pb-dock-editor .pb-de-btn:active { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 2px 2px 0 0 var(--pb-shadow-ink); }
+
+/* ---------- Shopping: céu azul com nuvens no lugar do cinza-claro em volta do prédio ----------
+   game-layout.js marca o mapa (html[data-pb-map]) e define o filtro #pb-key-void, que deixa o cinza do
+   "vazio" transparente; o céu abaixo é o fundo do .game-canvas-host. Fica parado enquanto o mapa anda. */
+html[data-pb-map="shopping"] .game-root .game-canvas-host {
+  background:
+    radial-gradient(38% 16% at 18% 22%, rgba(255, 255, 255, .85), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(26% 11% at 30% 26%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(34% 14% at 78% 14%, rgba(255, 255, 255, .75), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(42% 18% at 66% 62%, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(30% 13% at 12% 78%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 70%),
+    radial-gradient(36% 15% at 88% 88%, rgba(255, 255, 255, .55), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, #2f6fc4 0%, #5a98e6 40%, #8fc0f4 75%, #c4e0fb 100%) !important;
+}
+html[data-pb-map="shopping"] .game-root .game-canvas-host canvas { filter: url(#pb-key-void); }
+
+/* ---------- o que ficava no topo desce para baixo da barra ---------- */
+.game-root .game-hud-tl,
+.game-root .game-hud-tr { top: var(--pb-top) !important; }
+.game-root .ah-panel { top: var(--pb-top) !important; }
+.game-root .bi-wrap { top: var(--pb-top) !important; }
+.game-root .game-toast { top: calc(var(--pb-top) + 34px) !important; }
+.game-root .bhp-panel { top: calc(var(--pb-top) + 34px) !important; }
+.game-root .cbt-tag { top: calc(var(--pb-top) + 34px) !important; }
+
+
+/* =====================================================================
+   VISUAL PokeBoard Retro (tokens em src/ui/tokens.css)
+   Pixel honesto: sem cantos arredondados, sem brilho, moldura de pixel e sombra dura.
+   ===================================================================== */
+
+.game-root {
+  /* Molduras de pixel (--pb-frame-*) vêm de tokens.css. */
+  --pb-hp: var(--pb-success);
+  --pb-hp-low: #F0A53A;
+  --pb-hp-crit: var(--pb-dex-red-ink);
+}
+
+/* ---------- barra de telas ---------- */
+.game-root .game-dock {
+  background: var(--pb-surface) !important;
+  border: 0 !important;
+  border-image: none !important;
+  box-shadow: inset 0 -2px 0 0 var(--pb-border), 0 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .game-dock::before { display: none !important; }
+.game-root .dock-btn {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  filter: none !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+.game-root .dock-btn:hover { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-border) !important; }
+/* Tela aberta: moldura amarela (item ativo no tema noite), sem o brilho azul do jogo. */
+.game-root .dock-btn.on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .dock-btn:active { transform: translateY(2px) !important; }
+.game-root .dock-btn:focus-visible { outline: 2px solid var(--pb-focus) !important; outline-offset: 3px; }
+
+/* ---------- cartão do jogador + time ---------- */
+.game-root .phud {
+  background: var(--pb-surface) !important;
+  border: 0 !important;
+  border-image: none !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-border), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .phud::before { display: none !important; }
+.game-root .phud-head { border-bottom: 2px solid var(--pb-surface-raised) !important; }
+.game-root .phud-emblem { filter: none !important; }
+.game-root .phud-tname {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--pb-ink) !important;
+  font: 600 20px/24px var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .phud-tloc { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+
+/* Cada Pokémon: faixa na cor do tipo (--type, definida pelo jogo) à esquerda; o ativo ganha moldura amarela. */
+.game-root .phud-mon {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: inset 4px 0 0 0 var(--type, var(--pb-border)) !important;
+  padding-left: 9px !important;
+}
+.game-root .phud-mon:hover { background: var(--pb-surface-raised) !important; }
+
+/* HUD minimalista (hud-plus.js): ▴/▾ no cabeçalho recolhe o time e deixa só o ativo.
+   Cada Pokémon recolhe no lugar (altura, margem e padding vão a zero) em degraus de pixel. */
+#pb-hud-toggle {
+  flex: none;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink);
+  font: 600 14px/1 var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-hud-toggle:hover { box-shadow: var(--pb-frame-focus); }
+#pb-hud-toggle:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+.game-root .phud-party { gap: 0 !important; }
+.game-root .phud-mon {
+  max-height: 64px;
+  overflow: hidden;
+  transition: max-height .24s steps(4), margin-top .24s steps(4), padding .24s steps(4), opacity .24s steps(4) !important;
+}
+.game-root .phud-mon + .phud-mon { margin-top: 5px !important; }
+html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
+  max-height: 0 !important;
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.game-root .phud-mon.active {
+  background: var(--pb-surface-raised) !important;
+  box-shadow: inset 4px 0 0 0 var(--type, var(--pb-border)), var(--pb-frame-focus) !important;
+}
+.game-root .phud-mon:focus-visible { outline: 2px solid var(--pb-focus) !important; outline-offset: 3px; }
+
+/* Ícone: "telinha" quadrada com chão na cor do tipo (55%), em vez do círculo com brilho. */
+.game-root .phud-ico {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(to top, color-mix(in srgb, var(--type, var(--pb-border)) 55%, transparent) 0 10px, var(--pb-screen) 10px) !important;
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important;
+}
+.game-root .phud-name { color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .phud-lv { color: var(--pb-poke-blue) !important; font: 600 12px/16px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .phud-evolve {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-pika-yellow) !important;
+  color: var(--pb-on-yellow) !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  font: 600 12px/1 var(--pb-font-body) !important;
+}
+.game-root .phud-evolve:hover { filter: brightness(1.1) !important; }
+.game-root .phud-evolve.locked { background: var(--pb-surface-raised) !important; color: var(--pb-ink-muted) !important; }
+
+/* ---------- barras (vida, experiência; valem para o jogo inteiro) ---------- */
+.game-root .sbar {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-bar-track) !important;
+  box-shadow: 0 0 0 1px var(--pb-border) !important;
+}
+.game-root .sbar-fill { border-radius: 0 !important; }
+.game-root .sbar-fill::before,
+.game-root .sbar-shine { display: none !important; }
+.game-root .sbar-hp .sbar-fill { background: repeating-linear-gradient(90deg, var(--pb-hp) 0 6px, transparent 6px 8px) !important; }
+.game-root .sbar-hp.low .sbar-fill { background: repeating-linear-gradient(90deg, var(--pb-hp-low) 0 6px, transparent 6px 8px) !important; }
+.game-root .sbar-hp.crit .sbar-fill { background: repeating-linear-gradient(90deg, var(--pb-hp-crit) 0 6px, transparent 6px 8px) !important; }
+.game-root .sbar-exp .sbar-fill { background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important; }
+
+/* ---------- barras de rolagem (variáveis do próprio jogo) ---------- */
+.game-root {
+  --sb-r: 0px;
+  --sb-track: var(--pb-shadow-ink);
+  --sb-thumb: var(--pb-border);
+  --sb-thumb-hover: var(--pb-ink-muted);
+}
+
+/* ---------- cronômetro de evento/bônus (.bi-chip.event | xp | pokexp | loot | capture | debuff) ---------- */
+/* A cor da moldura diz o tipo de bônus, como no jogo; só tiramos o brilho e o arredondado. */
+.game-root .bi-chip { --pb-chip-c: var(--pb-border); }
+.game-root .bi-chip.event { --pb-chip-c: var(--pb-pika-yellow); }
+.game-root .bi-chip.xp { --pb-chip-c: #FFCF3A; }
+.game-root .bi-chip.pokexp { --pb-chip-c: #6FD3FF; }
+.game-root .bi-chip.loot { --pb-chip-c: #5BF08A; }
+.game-root .bi-chip.capture { --pb-chip-c: #FF9D5C; }
+.game-root .bi-chip.debuff { --pb-chip-c: var(--pb-dex-red-ink); }
+.game-root .bi-chip {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: 0 -2px 0 0 var(--pb-chip-c), 0 2px 0 0 var(--pb-chip-c), -2px 0 0 0 var(--pb-chip-c), 2px 0 0 0 var(--pb-chip-c), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 12px/16px var(--pb-font-body) !important;
+}
+.game-root .bi-time { color: var(--pb-ink) !important; }
+
+/* ---------- Auto-Helper (botão do jogo; o painel que abre é dele) ---------- */
+.game-root .ah-head {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 16px/22px var(--pb-font-body) !important;
+}
+.game-root .ah-head:hover { filter: brightness(1.12) !important; }
+.game-root .ah-head:active { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 2px 2px 0 0 var(--pb-shadow-ink) !important; }
+
+/* ---------- chat ---------- */
+.game-root .chat-box {
+  border: 0 !important;
+  border-image: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .chat-head { background: var(--pb-surface-raised) !important; }
+.game-root .chat-head::after { background: var(--pb-shadow-ink) !important; }  /* era a linha dourada */
+.game-root .chat-tab {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--pb-ink-muted) !important;
+  font: 600 12px/16px var(--pb-font-body) !important;  /* micro: "Lives e Vídeos" cabe numa linha */
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  padding: 4px 7px !important;
+  filter: none !important;
+}
+.game-root .chat-tab:hover { color: var(--pb-ink) !important; background: var(--pb-surface) !important; }
+.game-root .chat-tab.on {
+  color: var(--pb-ink) !important;
+  background: var(--pb-screen) !important;
+  box-shadow: inset 0 -3px 0 0 var(--pb-pika-yellow) !important;
+}
+/* Bolinha de conexão é um LED: único lugar com --pb-radius-dot, sem brilho. */
+.game-root .chat-dot { border-radius: var(--pb-radius-dot) !important; box-shadow: none !important; background: var(--pb-dex-red-ink) !important; }
+.game-root .chat-dot.on { background: var(--pb-success) !important; }
+.game-root .chat-min { color: var(--pb-ink-muted) !important; }
+.game-root .chat-min:hover { color: var(--pb-ink) !important; }
+
+.game-root .chat-list { background: var(--pb-screen) !important; box-shadow: var(--pb-shadow-bevel) !important; }
+.game-root .chat-list::-webkit-scrollbar-thumb { background: var(--pb-border) !important; border-radius: 0 !important; }
+/* Mensagens: mantêm as cores do jogo (VIP, admin, criador…), em fonte pixel e sem brilho em volta. */
+.game-root .chat-msg { font: 500 14px/18px var(--pb-font-body) !important; }
+.game-root .chat-msg .chat-from,
+.game-root .chat-msg .chat-body { text-shadow: none !important; }
+
+.game-root .chat-input { border-top: 2px solid var(--pb-shadow-ink) !important; box-shadow: none !important; }
+.game-root .chat-input input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+  font: 500 14px/18px var(--pb-font-body) !important;
+}
+.game-root .chat-input input::placeholder { color: var(--pb-ink-muted) !important; }
+.game-root .chat-input input:focus { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .chat-input button {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  text-shadow: none !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+}
+/* "Enviar" é o botão principal do chat: vermelho da carcaça. */
+.game-root .chat-input button:last-child { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
+.game-root .chat-input button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink) !important; }
+
+
+/* =====================================================================
+   JANELAS — carcaça da Pokédex (Panel): barra vermelha com lente, corpo em "tela".
+   Por enquanto só Pokédex (.dex-window) e Hunt Analyzer (.ha-window). Para levar a moldura a todas
+   as janelas do jogo, troque .dex-window por .ds-window nos seletores do bloco "Pokédex".
+   ===================================================================== */
+
+/* ---------- Pokédex: janela e cabeçalho ---------- */
+.game-root .dex-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .dex-window::before,
+.game-root .dex-window::after { display: none !important; }
+.game-root .dex-window .ds-head {
+  margin: 0 !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+  border: 0 !important;
+  clip-path: none !important;
+  min-height: 48px !important;
+  padding-bottom: 4px !important;
+}
+.game-root .dex-window .ds-hex-bg,
+.game-root .dex-window .ds-hex-rail,
+.game-root .dex-window .ds-hex-cap,
+.game-root .dex-window .ds-gem { display: none !important; }
+/* Lente azul com anel branco, à esquerda da barra. */
+.game-root .dex-window .ds-head::before,
+.game-root .ha-window .ha-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.game-root .dex-window .ds-title,
+.game-root .dex-window .ds-title span,
+.game-root .ha-window .ha-title,
+.game-root .ha-window .ha-title-txt {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .dex-window .ds-x,
+.game-root .ha-window .ha-x,
+.game-root .ha-window .ha-clear { color: var(--pb-on-red) !important; text-shadow: none !important; }
+.game-root .dex-window .ds-x:focus-visible,
+.game-root .ha-window .ha-x:focus-visible { outline: 2px solid var(--pb-on-red) !important; outline-offset: 2px; }
+
+/* ---------- Pokédex: contadores (também filtram) ---------- */
+.game-root .dex-window .dex-strip .stk-stat {
+  clip-path: none !important;
+  filter: none !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dex-window .dex-strip .stk-stat::before { display: none !important; }
+.game-root .dex-window .dex-strip .stk-stat b {
+  color: var(--pb-ink) !important;
+  -webkit-text-fill-color: currentColor !important;
+  background: none !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+}
+.game-root .dex-window .dex-strip .stk-lbl { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; letter-spacing: 0 !important; text-transform: none !important; }
+.game-root .dex-window .dex-strip button.dex-stat-f:hover { background: var(--pb-surface-raised) !important; }
+.game-root .dex-window .dex-strip button.dex-stat-f.on {
+  background: var(--pb-surface-raised) !important;
+  box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dex-window .dex-strip button.dex-stat-f.on .stk-lbl { color: var(--pb-ink) !important; }
+.game-root .dex-window .dex-strip .stk-stat.has b { color: var(--pb-pika-yellow) !important; }  /* recompensa */
+
+/* ---------- Pokédex: busca e filtro de tipo ---------- */
+.game-root .dex-window .dex-search,
+.game-root .dex-window .dex-typef {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+  font: 500 16px/22px var(--pb-font-body) !important;
+}
+.game-root .dex-window .dex-search::placeholder { color: var(--pb-ink-muted) !important; }
+.game-root .dex-window .dex-search:focus,
+.game-root .dex-window .dex-typef:focus { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .dex-window .dex-typef option { background: var(--pb-surface) !important; color: var(--pb-ink) !important; }
+
+/* ---------- Pokédex: grade e cards ---------- */
+.game-root .dex-window .dex-grid { background: var(--pb-screen) !important; box-shadow: var(--pb-shadow-bevel) !important; gap: 12px 10px !important; }
+.game-root .dex-window .dex-cell {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  /* moldura + faixa inferior de 4px na cor do primeiro tipo + sombra dura */
+  box-shadow: inset 0 -4px 0 0 var(--type, var(--pb-border)), var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  transform: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+.game-root .dex-window .dex-cell:hover { background: var(--pb-surface-raised) !important; }
+.game-root .dex-window .dex-cell:focus-visible { outline: 2px solid var(--pb-focus) !important; outline-offset: 4px; }
+.game-root .dex-window .dex-cell.locked { --type: var(--pb-border); }
+/* Recompensa pronta para resgatar: moldura amarela (o resgate continua no botão do jogo). */
+.game-root .dex-window .dex-cell.claimable {
+  box-shadow: inset 0 -4px 0 0 var(--type, var(--pb-border)), 0 -2px 0 0 var(--pb-pika-yellow), 0 2px 0 0 var(--pb-pika-yellow), -2px 0 0 0 var(--pb-pika-yellow), 2px 0 0 0 var(--pb-pika-yellow), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dex-window .dex-cell-no { color: var(--pb-ink-muted) !important; font: 400 8px/12px var(--pb-font-pixel) !important; }
+.game-root .dex-window .dex-cell-name { color: var(--pb-ink) !important; font: 600 13px/16px var(--pb-font-body) !important; }
+.game-root .dex-window .dex-badge {
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  font: 700 11px/1 var(--pb-font-body) !important;
+}
+.game-root .dex-window .dex-badge-caught { background: var(--pb-success) !important; color: var(--pb-on-success) !important; }
+.game-root .dex-window .dex-badge-lock { background: var(--pb-screen) !important; }
+
+/* ---------- Pokédex: detalhe (cabeçalho e sprite grande) ---------- */
+.game-root .dex-window .dex-detail-head {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: inset 0 -4px 0 0 var(--type, var(--pb-border)), var(--pb-frame-border) !important;
+}
+.game-root .dex-window .dex-detail-sprite {
+  clip-path: none !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important;
+}
+.game-root .dex-window .dex-detail-sprite::before { display: none !important; }
+.game-root .dex-window .dex-spriteglow { filter: none !important; }
+.game-root .dex-window .dex-shiny-btn { font: 600 14px/18px var(--pb-font-body) !important; color: var(--pb-ink-muted) !important; text-shadow: none !important; }
+.game-root .dex-window .dex-shiny-btn.on { color: var(--pb-pika-yellow) !important; }
+
+
+/* ---------- Hunt Analyzer: abre na coluna da esquerda, sem cobrir nenhum item ----------
+   Entre o cartão do jogador e o chat (vão medido por game-layout.js: --pb-left-top / --pb-left-h).
+   Arrastar a janela continua funcionando: o jogo grava a posição como "inset: …" no style e,
+   a partir daí, vale a posição que você escolheu. */
+.game-root .ha-window:not([style*="inset"]):not([style*="left"]):not([style*="top"]) {
+  top: var(--pb-left-top, 120px) !important;
+  left: 16px !important;
+  right: auto !important;
+  max-height: var(--pb-left-h, 60vh) !important;
+}
+.game-root .ha-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .ha-window::after { display: none !important; }  /* feixe de luz girando na borda */
+.game-root .ha-window .ha-head {
+  margin: 0 !important;
+  min-height: 44px !important;
+  padding-bottom: 4px !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+}
+.game-root .ha-window .ha-hex-bg,
+.game-root .ha-window .ha-hex-rail,
+.game-root .ha-window .ha-hex-cap,
+.game-root .ha-window .ha-gem { display: none !important; }
+.game-root .ha-window .ha-title svg { display: none !important; }
+.game-root .ha-window .ha-body { background: var(--pb-screen) !important; box-shadow: var(--pb-shadow-bevel) !important; overflow-y: auto !important; }
+.game-root .ha-window .ha-sub { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .ha-window .ha-card,
+.game-root .ha-window .ha-rate {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border) !important;
+  filter: none !important;
+}
+.game-root .ha-window .ha-card b { font: 700 18px/22px var(--pb-font-body) !important; }
+.game-root .ha-window .ha-card small { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; }
+/* Taxas por hora: a fonte pixel é mais larga, então quebram linha em vez de cortar com "…". */
+.game-root .ha-window .ha-rate { font: 600 12px/16px var(--pb-font-body) !important; white-space: normal !important; text-overflow: clip !important; padding: 4px 2px !important; }
+.game-root .ha-window .ha-balance {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+}
+.game-root .ha-window .ha-balance span { color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .ha-window .ha-balance b { text-shadow: none !important; font: 700 20px/24px var(--pb-font-body) !important; }
+.game-root .ha-window .ha-market-toggle { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; }
+.game-root .ha-window .ha-market-toggle input { accent-color: var(--pb-pika-yellow) !important; }
+.game-root .ha-window .ha-drops-head {
+  background: none !important;
+  border-bottom: 2px solid var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .ha-window .ha-drop { border-radius: 0 !important; }
+.game-root .ha-window .ha-drop:hover { background: var(--pb-surface-raised) !important; }
+.game-root .ha-window .ha-drop-name,
+.game-root .ha-window .ha-drop-qty,
+.game-root .ha-window .ha-drop-gold { font-family: var(--pb-font-body) !important; }
+
+/* "Ver Log de Capturas" agora é o card "Capturados": o botão do jogo fica invisível por cima do card
+   (posição medida por game-layout.js; sem a medida, html não tem data-pb-clog e o botão fica onde estava). */
+.game-root .ha-window .ha-body { position: relative !important; }
+html[data-pb-clog] .game-root .ha-window .ha-clog-btn {
+  position: absolute !important;
+  left: var(--pb-clog-x) !important;
+  top: var(--pb-clog-y) !important;
+  width: var(--pb-clog-w) !important;
+  height: var(--pb-clog-h) !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  font-size: 0 !important;
+  box-shadow: none !important;
+  z-index: 2;
+  cursor: pointer;
+}
+html[data-pb-clog] .game-root .ha-window .ha-clog-btn:hover,
+html[data-pb-clog] .game-root .ha-window .ha-clog-btn:focus-visible { box-shadow: var(--pb-frame-focus) !important; outline: none !important; }
+html[data-pb-clog] .game-root .ha-window .ha-card.ha-catch { position: relative; }
+html[data-pb-clog] .game-root .ha-window .ha-card.ha-catch::after {
+  content: "Ver log ›";
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: var(--pb-poke-blue);
+  font: 500 12px/16px var(--pb-font-body);
+}
+
+
+/* ---------- Log de capturas (.clog-window; abre pelo card "Capturados" do Hunt Analyzer) ---------- */
+.game-root .clog-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .clog-window::after { display: none !important; }
+.game-root .clog-window .clog-title {
+  margin: 0 !important;
+  min-height: 44px !important;
+  padding-bottom: 4px !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+}
+.game-root .clog-window .clog-hex-bg,
+.game-root .clog-window .clog-hex-rail,
+.game-root .clog-window .clog-hex-cap,
+.game-root .clog-window .clog-gem,
+.game-root .clog-window .clog-title-ico { display: none !important; }
+.game-root .clog-window .clog-title::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.game-root .clog-window .clog-titletxt,
+.game-root .clog-window .clog-titletxt-t {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  filter: none !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .clog-window .clog-x { color: var(--pb-on-red) !important; }
+.game-root .clog-window .clog-x:focus-visible { outline: 2px solid var(--pb-on-red) !important; outline-offset: 2px; }
+
+.game-root .clog-window .clog-totals { color: var(--pb-ink-muted) !important; font: 500 14px/18px var(--pb-font-body) !important; }
+.game-root .clog-window .clog-totals b { color: var(--pb-ink) !important; }
+.game-root .clog-window .clog-t-shiny b { color: var(--pb-pika-yellow) !important; text-shadow: none !important; }
+.game-root .clog-window .clog-tab {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  color: var(--pb-ink-muted) !important;
+  box-shadow: var(--pb-frame-border) !important;
+  filter: none !important;
+  font: 600 14px/18px var(--pb-font-body) !important;
+}
+.game-root .clog-window .clog-tab:hover { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; }
+.game-root .clog-window .clog-tab.on { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+
+.game-root .clog-window .clog-list {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+}
+.game-root .clog-window .clog-empty { color: var(--pb-ink-muted) !important; font: 500 14px/18px var(--pb-font-body) !important; }
+.game-root .clog-window .clog-row {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  color: var(--pb-ink-muted) !important;
+  box-shadow: var(--pb-frame-border) !important;
+  font: 500 13px/16px var(--pb-font-body) !important;
+}
+/* Shiny: moldura amarela (raridade = recompensa). */
+.game-root .clog-window .clog-row.shiny { box-shadow: var(--pb-frame-focus) !important; }
+.game-root .clog-window .clog-name { color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; }
+.game-root .clog-window .clog-row.shiny .clog-name { color: var(--pb-pika-yellow) !important; }
+.game-root .clog-window .clog-first {
+  border-radius: 0 !important;
+  background: var(--pb-pika-yellow) !important;
+  color: var(--pb-on-yellow) !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  font: 600 11px/14px var(--pb-font-body) !important;
+}
+.game-root .clog-window .clog-lvl,
+.game-root .clog-window .clog-meta,
+.game-root .clog-window .clog-ball,
+.game-root .clog-window .clog-when { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .clog-window .clog-foot { background: none !important; border-top: 2px solid var(--pb-surface-raised) !important; }
+.game-root .clog-window .clog-note { color: var(--pb-ink-muted) !important; font: 500 12px/16px var(--pb-font-body) !important; }
+/* Limpar o log é destrutivo: vermelho para texto, botão secundário; armado (2º clique) fica vermelho cheio. */
+.game-root .clog-window .clog-clear {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-dex-red-ink) !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 12px/16px var(--pb-font-body) !important;
+}
+.game-root .clog-window .clog-clear.arm { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
+
+/* Colunas do log: qualidade + IV ("Incomum · IV 129/192") sempre inteiros; o nome é quem encolhe. */
+.game-root .clog-window .clog-row {
+  grid-template-columns: 30px minmax(48px, 1fr) max-content max-content max-content max-content !important;
+  column-gap: 8px !important;
+}
+.game-root .clog-window .clog-meta,
+.game-root .clog-window .clog-ball,
+.game-root .clog-window .clog-when { overflow: visible !important; text-overflow: clip !important; white-space: nowrap !important; }
+.game-root .clog-window .clog-meta b { font-weight: 700 !important; }
+
+/* Abas do jogo (Todos / Shiny / Normais) dão lugar aos nossos botões (capture-log-plus.js).
+   Só somem enquanto "Todos" está ativa: se outra aba estiver ligada, ficam para você poder voltar. */
+.game-root .clog-window .clog-tabs:has(> .clog-tab.on:first-child) { display: none !important; }
+#pb-clog-tools { display: flex; gap: 6px; }
+#pb-clog-tools button {
+  margin: 2px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface);
+  color: var(--pb-ink-muted);
+  box-shadow: var(--pb-frame-border);
+  font: 600 12px/16px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-clog-tools button:hover { color: var(--pb-ink); background: var(--pb-surface-raised); }
+#pb-clog-tools button[aria-pressed="true"] { color: var(--pb-ink); background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus); }
+#pb-clog-tools button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+.game-root .clog-list[data-pb-shiny] .clog-row:not(.shiny) { display: none !important; }
+.game-root .clog-list[data-pb-shiny]:not(:has(.clog-row.shiny))::after {
+  content: "Nenhum shiny nas capturas carregadas.";
+  padding: 24px 0;
+  text-align: center;
+  color: var(--pb-ink-muted);
+  font: 500 14px/18px var(--pb-font-body);
+}
+.game-root .clog-list[data-pb-sort] .clog-row { order: var(--pb-ord, 0); }
+
+
+/* ---------- Mapa (Kanto, Outland…): carcaça da Pokédex + filtros nossos (map-plus.js) ---------- */
+.game-root .map-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(5, 7, 10, .72) !important; }
+.game-root .map-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .map-overlay .map-window::after { display: none !important; }
+.game-root .map-window .ds-head {
+  margin: 0 !important;
+  min-height: 46px !important;
+  padding-bottom: 4px !important;
+  padding-left: 46px !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+  border: 0 !important;
+  clip-path: none !important;
+}
+.game-root .map-window .ds-hex-bg,
+.game-root .map-window .ds-hex-rail,
+.game-root .map-window .ds-hex-cap,
+.game-root .map-window .ds-gem { display: none !important; }
+.game-root .map-window .ds-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+  z-index: 2;
+}
+.game-root .map-window .ds-title {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  text-shadow: none !important;
+  font: 400 16px/24px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .map-window .map-title-ico { display: none !important; }
+.game-root .map-window .ds-x { color: var(--pb-on-red) !important; }
+.game-root .map-window .map-zoom button {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 2px 2px 0 0 var(--pb-shadow-ink) !important;
+  font: 700 16px/1 var(--pb-font-body) !important;
+}
+/* Placas de região: sem brilho; a ativa ganha moldura amarela. */
+.game-root .map-window .map-areas { background: var(--pb-surface) !important; border-bottom: 2px solid var(--pb-shadow-ink) !important; box-shadow: none !important; }
+.game-root .map-window .map-plate { filter: none !important; transform: none !important; }
+.game-root .map-window .map-plate.on { box-shadow: var(--pb-frame-focus) !important; }
+.game-root .map-window .map-plate.locked { filter: grayscale(1) brightness(.6) !important; }
+.game-root .map-window .map-viewport { background: var(--pb-screen) !important; }
+
+/* Marcadores: só o Pokémon, sem fundo nem moldura, para enxergar de longe. A moldura só aparece
+   ao passar o mouse, no selecionado (amarelo) e onde você está (azul). */
+.game-root .map-window .hunt-circle {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.game-root .map-window .hunt-marker:hover .hunt-circle,
+.game-root .map-window .hunt-marker:focus-visible .hunt-circle { box-shadow: var(--pb-frame-border) !important; }
+.game-root .map-window .hunt-marker.sel .hunt-circle { box-shadow: var(--pb-frame-focus) !important; }
+/* Onde você está: azul (informação). */
+.game-root .map-window .hunt-marker.here .hunt-circle {
+  box-shadow: 0 -2px 0 0 var(--pb-poke-blue), 0 2px 0 0 var(--pb-poke-blue), -2px 0 0 0 var(--pb-poke-blue), 2px 0 0 0 var(--pb-poke-blue) !important;
+}
+.game-root .map-window .hunt-name,
+.game-root .map-window .hunt-lvl {
+  padding: 0 4px;
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink);
+  text-shadow: none !important;
+  letter-spacing: 0 !important;
+  font: 600 12px/16px var(--pb-font-body) !important;
+}
+.game-root .map-window .hunt-name { color: var(--pb-ink) !important; margin-top: 5px !important; }
+.game-root .map-window .hunt-lvl { margin-top: 3px; }
+.game-root .map-window .hunt-lvl.ok { color: var(--pb-success) !important; }
+.game-root .map-window .hunt-lvl.no { color: var(--pb-dex-red-ink) !important; }
+.game-root .map-window .hunt-marker[data-pb-hide] { display: none !important; }
+
+/* Filtros do jogo escondidos enquanto os nossos estiverem na janela (eles zeravam a cada abertura). */
+.game-root .map-window:has(#pb-map-tools) .map-filters,
+.game-root .map-window:has(#pb-map-tools) .map-filter-types { display: none !important; }
+#pb-map-tools {
+  padding: 8px 12px 8px;
+  background: var(--pb-surface);
+  border-bottom: 2px solid var(--pb-shadow-ink);
+  font: 500 14px/18px var(--pb-font-body);
+  color: var(--pb-ink-muted);
+}
+#pb-map-tools .pb-map-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+#pb-map-tools input {
+  margin: 2px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-screen);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel);
+  font: 500 14px/18px var(--pb-font-body);
+  outline: none;
+}
+#pb-map-tools input:focus { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel); }
+#pb-map-tools input::placeholder { color: var(--pb-ink-muted); }
+#pb-map-tools .pb-map-q { width: 200px; }
+#pb-map-tools .pb-map-lvl { display: flex; align-items: center; gap: 4px; }
+#pb-map-tools .pb-map-lvl input { width: 64px; }
+#pb-map-tools .pb-map-clear {
+  margin: 2px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink);
+  font: 600 14px/18px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-map-tools .pb-map-count { margin-left: auto; color: var(--pb-ink); }
+#pb-map-tools .pb-map-types { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 6px; }
+/* Chips de tipo: cor do tipo é dado; selecionado = moldura amarela, os outros ficam apagados quando há seleção. */
+#pb-map-tools .pb-map-types button {
+  margin: 2px;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-chip);
+  color: var(--pb-chip-ink-dark);
+  box-shadow: var(--pb-frame-ink);
+  font: 600 12px/16px var(--pb-font-body);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#pb-map-tools .pb-map-types button:is([data-type="FIGHTING"], [data-type="POISON"], [data-type="GHOST"], [data-type="DRAGON"], [data-type="DARK"]) { color: var(--pb-chip-ink-light); }
+#pb-map-tools .pb-map-types:has([aria-pressed="true"]) button[aria-pressed="false"] { filter: grayscale(.7) brightness(.6); }
+#pb-map-tools .pb-map-types button[aria-pressed="true"] { box-shadow: var(--pb-frame-focus); }
+#pb-map-tools button:focus-visible,
+#pb-map-tools input:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+
+
+/* ---------- Mercado Global: filtro de moeda (market-plus.js) ----------
+   market-plus.js marca a janela com data-pb-cur (filtro) e cada anúncio com a moeda dele. */
+.game-root .mkt2-window[data-pb-cur="DOLLARS"] [data-pb-cur]:not([data-pb-cur="DOLLARS"]),
+.game-root .mkt2-window[data-pb-cur="DIAMONDS"] [data-pb-cur]:not([data-pb-cur="DIAMONDS"]) { display: none !important; }
+
+#pb-mkt-cur {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+  font: 500 12px/16px var(--pb-font-body);
+  color: var(--pb-ink-muted);
+}
+#pb-mkt-cur button {
+  margin: 2px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface);
+  color: var(--pb-ink-muted);
+  box-shadow: var(--pb-frame-border);
+  font: 600 14px/18px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-mkt-cur button:hover { color: var(--pb-ink); background: var(--pb-surface-raised); }
+#pb-mkt-cur button[aria-pressed="true"] { color: var(--pb-ink); background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus); }
+#pb-mkt-cur button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-mkt-cur .pb-mkt-cur-count { color: var(--pb-ink); }

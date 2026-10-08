@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="noite">
+<head>
+<meta charset="utf-8">
+<!-- Fontes do design system vêm do Google Fonts (tokens.css importa); o resto é local. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com">
+<title>PokeBoard</title>
+<link rel="stylesheet" href="../ui/tokens.css">
+<link rel="stylesheet" href="../ui/retro.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+  <!-- Barra única do topo, como a carcaça da Pokédex: o resto da janela é jogo. -->
+  <header class="topbar">
+    <span class="pr-lens" aria-hidden="true"></span>
+    <span class="pr-leds" aria-hidden="true"><i class="pr-led pr-led--red"></i><i class="pr-led pr-led--yellow"></i><i class="pr-led pr-led--green"></i></span>
+    <h1 class="brand">PokeBoard</h1>
+    <nav id="accounts" class="accounts" aria-label="Contas (duplo clique renomeia)"></nav>
+    <div class="seg" role="group" aria-label="Layout">
+      <button data-layout="grid" class="pr-btn pr-btn--secondary" title="Tela dividida (Ctrl+0)">Grade</button>
+      <button data-layout="focus" class="pr-btn pr-btn--secondary" title="Uma conta grande (Ctrl+1, Ctrl+2…)">Foco</button>
+    </div>
+    <span class="spacer"></span>
+    <button id="btnReloadAll" class="pr-btn pr-btn--secondary pr-btn--icon" title="Recarregar todos os painéis" aria-label="Recarregar todos os painéis">↻</button>
+    <button id="btnTheme" class="pr-btn pr-btn--secondary pr-btn--icon" title="Editar o tema (theme.css)" aria-label="Editar o tema">✎</button>
+    <button id="btnHelp" class="pr-btn pr-btn--secondary pr-btn--icon" aria-label="Atalhos"
+      title="Atalhos: Ctrl+1/2… amplia uma conta · Ctrl+0 volta à grade · Ctrl+roda do mouse ou Ctrl+= / Ctrl+- muda o zoom do painel · Alt+P abre a Pokédex+ · duplo clique no nome da conta renomeia">?</button>
+  </header>
+  <div id="cells"></div>
+  <script src="shell.js"></script>
+</body>
+</html>

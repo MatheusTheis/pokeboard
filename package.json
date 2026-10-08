@@ -1,0 +1,25 @@
+{
+  "name": "poke-board",
+  "productName": "PokeBoard",
+  "version": "0.2.0",
+  "description": "Board para jogar Poke Idle World com várias contas numa janela só, com visual PokeBoard Retro e ferramentas de visualização.",
+  "main": "src/main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Matheus Theis",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MatheusTheis/pokeboard.git"
+  },
+  "homepage": "https://github.com/MatheusTheis/pokeboard#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "electron .",
+    "check": "node scripts/check.js"
+  },
+  "devDependencies": {
+    "electron": "44.5.1"
+  }
+}
