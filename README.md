@@ -55,6 +55,14 @@ npm start
 
 Se o PowerShell bloquear o `npm.ps1`, use `npm.cmd install` e `npm.cmd start`.
 
+### Atalho com ícone e barra de tarefas
+
+```powershell
+npm run shortcut
+```
+
+Cria o atalho **PokeBoard** no Menu Iniciar e na Área de Trabalho, com o ícone do app, rodando o projeto desta pasta (as mudanças no código valem sem reconstruir nada). Para fixar: abra pelo atalho, clique com o botão direito no ícone da barra de tarefas e escolha **Fixar na barra de tarefas**. O atalho e a janela usam o mesmo ID de aplicativo, então o Windows agrupa os dois. Com `npm run shortcut -- --record` o atalho já abre com o gravador ligado.
+
 Na primeira vez, faça login em cada painel com uma conta diferente. O login de cada conta fica salvo: o jogo guarda a sessão só enquanto a janela está aberta, então o PokeBoard guarda uma cópia dela por conta, **criptografada com o seu usuário do Windows**, em `%APPDATA%\poke-board\sessao-contaN.bin`, e a devolve ao abrir. A senha nunca é guardada. Para esquecer um login, saia da conta pelo jogo.
 
 Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está aberta para a frente.
@@ -122,6 +130,7 @@ theme/theme.css             o seu tema, aplicado por último
 docs/design-system.md       o design system PokeBoard Retro
 scripts/check.js            confere a sintaxe dos .js e as chaves dos .css
 scripts/make-icon.js        gera assets/icon.png e assets/icon.ico (pixel art própria)
+scripts/make-shortcut.js    cria os atalhos do Menu Iniciar e da Área de Trabalho (npm run shortcut)
 assets/                     ícone do app (janela e barra de tarefas)
 ```
 
@@ -141,8 +150,8 @@ Confere a sintaxe de todos os `.js` e as chaves dos `.css` sem abrir o jogo. O m
 
 | Variável | Para quê |
 |---|---|
-| `PB_DEBUG=1` | Repete no terminal os avisos e erros do console dos painéis, as navegações e as chamadas de login. |
-| `PB_RECORD=1` | Liga o gravador: salva em `%APPDATA%\poke-board\debug\` os endpoints chamados, um exemplo de cada resposta JSON (sem tokens), o mapa do DOM e um print de cada tela nova. Criar `debug\capturar` tira um print na hora. |
+| `PB_DEBUG=1` ou `--pb-debug` | Repete no terminal os avisos e erros do console dos painéis, as navegações e as chamadas de login. |
+| `PB_RECORD=1` ou `--pb-record` | Liga o gravador: salva em `%APPDATA%\poke-board\debug\` os endpoints chamados, um exemplo de cada resposta JSON (sem tokens), o mapa do DOM e um print de cada tela nova. Criar `debug\capturar` tira um print na hora. |
 | `PB_GAME_URL` | Abre uma página falsa no lugar do jogo, para testar. Use junto com `--user-data-dir` para não mexer nas sessões de verdade. |
 
 ```powershell

@@ -4,6 +4,11 @@ const path = require('path');
 const fs = require('fs');
 const { createRecorder } = require('./recorder');
 
+// Pasta de dados fixa em %APPDATA%\poke-board (logins, board.json, sessões salvas). Sem isto, o Electron usaria
+// o productName ("PokeBoard") e os logins sumiriam ao trocar de nome ou rodar empacotado. --user-data-dir
+// (testes com PB_GAME_URL) continua valendo.
+if (!app.commandLine.hasSwitch('user-data-dir')) app.setPath('userData', path.join(app.getPath('appData'), 'poke-board'));
+
 // PB_GAME_URL: só para testar o board com uma página falsa local (ex.: http://127.0.0.1:5173/play).
 // Use junto com --user-data-dir para não mexer nas sessões e no board.json de verdade.
 const GAME_URL = process.env.PB_GAME_URL || 'https://poke.idleworld.online/play';
@@ -360,6 +365,9 @@ ipcMain.on('pb:rename', (_, i, name) => {
 
 // ---------- app ----------
 // Duas instâncias abertas disputariam as mesmas pastas de sessão (persist:contaN) e quebrariam os logins.
+// Atalhos não passam variáveis de ambiente: --pb-record e --pb-debug valem como PB_RECORD=1 e PB_DEBUG=1.
+for (const [flag, env] of [['pb-record', 'PB_RECORD'], ['pb-debug', 'PB_DEBUG']]) if (app.commandLine.hasSwitch(flag)) process.env[env] = '1';
+
 // Sem um ID próprio, o Windows agrupa a janela com o ícone padrão do Electron na barra de tarefas.
 if (process.platform === 'win32') app.setAppUserModelId('com.matheustheis.pokeboard');
 
