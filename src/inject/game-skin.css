@@ -604,9 +604,10 @@ html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
 
 /* ---------- Hunt Analyzer: abre na coluna da esquerda, sem cobrir nenhum item ----------
    Entre o cartão do jogador e o chat (vão medido por game-layout.js: --pb-left-top / --pb-left-h).
-   Arrastar a janela continua funcionando: o jogo grava a posição como "inset: …" no style e,
-   a partir daí, vale a posição que você escolheu. */
-.game-root .ha-window:not([style*="inset"]):not([style*="left"]):not([style*="top"]) {
+   Vale toda vez que a janela abre, em todas as contas, mesmo que o jogo reaplique uma posição antiga.
+   Arrastar pelo título continua funcionando: game-layout.js marca data-pb-moved e, até fechar, vale
+   onde você soltou. */
+.game-root .ha-window:not([data-pb-moved]) {
   top: var(--pb-left-top, 120px) !important;
   left: 16px !important;
   right: auto !important;

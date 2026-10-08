@@ -60,6 +60,23 @@
     if (!root.hasAttribute('data-pb-clog')) root.setAttribute('data-pb-clog', '');
   }
 
+  // Hunt Analyzer: posição padrão (coluna da esquerda) toda vez que abre, nas duas contas. O jogo grava onde a
+  // janela foi arrastada e reaplica ao abrir (inset no style), o que deixava cada conta num lugar. Agora só vale
+  // a posição arrastada NESTA abertura: data-pb-moved marca a janela quando o style muda durante um arraste pelo
+  // título (clicar no 🗑 ou no ✕ não conta). CSS em game-skin.css.
+  let drag = null;  // { win, style }
+  document.addEventListener('pointerdown', e => {
+    const head = e.target.closest?.('.ha-window .ha-head');
+    drag = head && !e.target.closest('button') ? { win: head.closest('.ha-window'), style: head.closest('.ha-window').getAttribute('style') || '' } : null;
+  }, true);
+  const checkMoved = () => {
+    if (!drag) return;
+    const s = drag.win.getAttribute('style') || '';
+    if (s !== drag.style && /inset|left|top/.test(s)) { drag.win.setAttribute('data-pb-moved', ''); drag = null; }
+  };
+  document.addEventListener('pointermove', checkMoved, true);
+  document.addEventListener('pointerup', () => { checkMoved(); drag = null; }, true);
+
   // Hunt Analyzer: o card "Derrotados" abre a ficha do Pokémon da hunt atual (card do PokeBoard, pb-card.js).
   // A hunt é o nome que o cartão do jogador mostra ("Nível 290 · Sneasel"). O card do jogo não tem ação;
   // o clique é tratado só por nós.
