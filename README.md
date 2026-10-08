@@ -79,6 +79,10 @@ Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está abe
 | `Alt+P` | Abre e fecha a Pokédex+ |
 | Duplo clique no nome da conta | Renomeia |
 
+### Visual PokeBoard ou original
+
+O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
+
 ### Quantas contas
 
 O padrão é 2. Para 1 a 4, troque `accountCount` em `%APPDATA%\poke-board\board.json` e reabra o app.

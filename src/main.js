@@ -29,10 +29,19 @@ const ZOOM_MIN = 0.3, ZOOM_MAX = 2;
 const THEME_PATH = path.join(__dirname, '..', 'theme', 'theme.css');
 // CSS aplicado nos painéis, nesta ordem: tokens do design system, nosso visual do jogo e, por último,
 // o tema do usuário (para poder sobrescrever tudo). Salvar qualquer um reaplica na hora.
-const PANEL_CSS = [
+// Com o visual PokeBoard desligado (botão "Original" no topo), os três primeiros não entram e os controles
+// nossos dentro do jogo ficam escondidos (sem o CSS deles, apareceriam sem estilo).
+const SKIN_CSS = new Set([
   path.join(__dirname, 'ui', 'tokens.css'),
   path.join(__dirname, 'inject', 'game-skin.css'),
   path.join(__dirname, 'inject', 'game-windows.css'),
+]);
+const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard) */
+#pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
+#pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay { display: none !important; }`;
+const PANEL_CSS = [
+  ...SKIN_CSS,
+  () => (state.skin ? '' : SKIN_OFF_CSS),
   () => dockOrderCss(),  // gerado do board.json (ordem da barra de telas)
   THEME_PATH,
 ];
@@ -68,6 +77,7 @@ let state = {
   zoomAdjust: [1, 1, 1, 1],  // ajuste manual de zoom por conta, sobre o automático (1 = automático)
   dockOrder: [],             // ordem dos ícones da barra de telas (data-guide do jogo); vazio = ordem do jogo
   prefs: {},                 // preferências dos botões nossos dentro do jogo (ver PREFS), iguais para todas as contas
+  skin: true,                // visual PokeBoard no jogo; false = design original do jogo
 };
 // Preferências que os scripts injetados podem salvar. Cada uma tem um validador: devolve o valor limpo,
 // ou undefined para recusar (o que vem do jogo nunca entra no board.json sem passar por aqui).
@@ -109,6 +119,7 @@ function loadState() {
     zoomAdjust: [0, 1, 2, 3].map(i => clampAdjust(Number(saved.zoomAdjust?.[i]) || 1)),
     dockOrder: cleanDockOrder(saved.dockOrder),
     prefs: Object.fromEntries(Object.entries(PREFS).map(([k, p]) => [k, p.clean(saved.prefs?.[k]) ?? p.def])),
+    skin: saved.skin !== false,
   };
 }
 const clampAdjust = a => Math.min(5, Math.max(0.2, a));
@@ -140,6 +151,7 @@ async function applyThemeNow(i) {
   for (const key of themeKeys[i] || []) { try { await wc.removeInsertedCSS(key); } catch {} }
   themeKeys[i] = [];
   for (const src of PANEL_CSS) {
+    if (!state.skin && SKIN_CSS.has(src)) continue;
     let css;
     try { css = typeof src === 'function' ? src() : fs.readFileSync(src, 'utf8'); } catch { continue; }
     if (css) themeKeys[i].push(await wc.insertCSS(css, { cssOrigin: 'author' }));
@@ -355,6 +367,13 @@ ipcMain.on('pb:set-dock-order', (e, order) => {
 });
 ipcMain.on('pb:reload', (_, i) => views[i]?.webContents.reload());
 ipcMain.on('pb:reload-all', () => views.forEach(v => v.webContents.reload()));
+// Visual PokeBoard ↔ design original do jogo: troca o CSS dos painéis na hora, sem recarregar o jogo.
+ipcMain.on('pb:set-skin', (_, on) => {
+  state.skin = !!on;
+  saveState();
+  views.forEach((_, i) => applyTheme(i));
+  layout();  // o shell recebe o estado novo e atualiza o botão
+});
 ipcMain.on('pb:devtools', (_, i) => views[i]?.webContents.openDevTools({ mode: 'detach' }));
 ipcMain.on('pb:open-theme', () => shell.openPath(THEME_PATH));
 ipcMain.on('pb:rename', (_, i, name) => {

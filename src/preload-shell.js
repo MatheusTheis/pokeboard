@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('board', {
   zoom: (i, dir) => ipcRenderer.send('pb:zoom', i, dir),  // dir: 'in' | 'out' | 'auto'
   reload: i => ipcRenderer.send('pb:reload', i),
   reloadAll: () => ipcRenderer.send('pb:reload-all'),
+  setSkin: on => ipcRenderer.send('pb:set-skin', on),  // true = visual PokeBoard, false = design original do jogo
   devtools: i => ipcRenderer.send('pb:devtools', i),
   openTheme: () => ipcRenderer.send('pb:open-theme'),
   rename: (i, name) => ipcRenderer.send('pb:rename', i, name),

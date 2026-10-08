@@ -20,6 +20,8 @@ function renderAccounts(state) {
   });
   document.querySelectorAll('[data-layout]').forEach(btn =>
     btn.setAttribute('aria-pressed', String(btn.dataset.layout === state.layout)));
+  // "Original" pressionado = design original do jogo (visual PokeBoard desligado).
+  $('#btnSkin').setAttribute('aria-pressed', String(state.skin === false));
 }
 
 function startRename(btn, i, name) {
@@ -77,4 +79,5 @@ board.onLayout(data => { current = data.state; renderAccounts(data.state); rende
 board.getState().then(s => { current = s; renderAccounts(s); });
 document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.setLayout(b.dataset.layout));
 $('#btnReloadAll').onclick = () => board.reloadAll();
+$('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
 $('#btnTheme').onclick = () => board.openTheme();
