@@ -30,8 +30,9 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | **Visual PokeBoard Retro** | Barra de telas no topo inteiro, cartão do jogador, barras segmentadas, chat e todas as janelas do jogo (Mercado, Pokédex, Breeding, Equipe, Streak, Missões, Perfil, lojas) com carcaça vermelha e moldura de pixel. |
 | **Barra de telas organizável** | Botão ✎ para reordenar os ícones (vale para todas as contas). No modo dividido, ícones grandes com rolagem pela roda do mouse. |
 | **Mercado** | Filtro de moeda (Dollars / Diamonds), Anunciar itens e Pokémon numa tela só, e card com os detalhes ao clicar numa venda do Histórico. |
+| **Loja do Mark** | Visual Retro nas abas Comprar, Vender e Pokémon, com o dinheiro num visor. No Comprar, **Máx** põe na quantidade o máximo que o dinheiro paga; a compra continua no botão Comprar do jogo. |
 | **Mapa** | Filtros próprios (busca, nível, tipos) e posição do mapa que ficam salvos ao fechar e reabrir; marcadores limpos para ver de longe. |
-| **Hunt Analyzer** | Abre num lugar livre da tela; "Capturados" abre o log de capturas e "Derrotados" abre a ficha do Pokémon da hunt. |
+| **Hunt Analyzer** | Abre num lugar livre da tela; "Capturados" abre o log de capturas e "Derrotados" abre a Pokédex do jogo na ficha do Pokémon da hunt. |
 | **Log de capturas** | ✨ Shiny, ordenar por IV ou por qualidade, com o IV sempre inteiro na tabela. |
 | **Ficha do Pokémon** | Card com tipos, raridade, hunt, evolução, situação na sua Pokédex e estatísticas base. |
 | **HUD minimalista** | ▴/▾ no cartão do jogador recolhe o time e deixa só o Pokémon ativo. |
@@ -81,7 +82,7 @@ Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está abe
 
 ### Visual PokeBoard ou original
 
-O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
+O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, Máx da Loja do Mark, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
 
 ### Quantas contas
 
@@ -101,7 +102,10 @@ Prefira classes com nomes estáveis; classes com hash (`.css-1x2y3z`) mudam quan
 
 O jogo proíbe macros e automação sem autorização; a staff autorizou melhorias visuais e de visualização de dados. Por isso o PokeBoard:
 
-- **não automatiza o jogo:** não clica, não digita e não repete ações pelo jogador. A única exceção é o atalho **Mercado · Mark**, que aperta os botões do próprio jogo na ordem (voltar à cidade, ir ao Shopping, abrir o NPC) quando você escolhe uma das opções;
+- **não automatiza o jogo:** não clica, não digita e não repete ações pelo jogador. Exceções, sempre a partir de um clique seu e sem nunca comprar, vender ou capturar:
+  - o atalho **Mercado · Mark** aperta os botões do próprio jogo na ordem (voltar à cidade, ir ao Shopping, abrir o NPC) quando você escolhe uma das opções;
+  - **Derrotados**, no Hunt Analyzer, aperta o botão Pokédex e o card da espécie (só telas de consulta);
+  - **Máx**, na Loja do Mark, preenche o campo de quantidade; quem compra é o botão Comprar do jogo;
 - **só lê:** os scripts injetados leem o DOM e as respostas que o jogo já buscou; não chamam rotas de ação;
 - **não redistribui arte:** sprites e imagens do jogo são lidos em tempo de execução e guardados só no cache local; nada disso entra neste repositório;
 - **não quebra o jogo:** CSS e scripts usam prefixos próprios (`.pr-`, `#pb-`, `pb:`, `--pb-`) e não substituem funções do jogo (o único gancho observa `fetch`/`XMLHttpRequest` e devolve a resposta intacta);
@@ -121,9 +125,9 @@ src/ui/retro.css            componentes .pr-* (botão, lente, LEDs, campo)
 src/inject/hook.js          observa (só leitura) as respostas JSON do jogo
 src/inject/game-skin.css    layout e visual do HUD, chat, mapa, Pokédex e Hunt Analyzer
 src/inject/game-windows.css visual das janelas do jogo, atalhos e card de informação
-src/inject/game-layout.js   medidas de layout, céu do Shopping, atalho Mercado · Mark
+src/inject/game-layout.js   medidas de layout, céu do Shopping, atalho Mercado · Mark, Derrotados → Pokédex
 src/inject/pb-card.js       card de informação (ficha de Pokémon ou item)
-src/inject/market-plus.js   filtro de moeda, Anunciar unificado e card do Histórico
+src/inject/market-plus.js   filtro de moeda, Anunciar unificado, card do Histórico e Máx da Loja do Mark
 src/inject/map-plus.js      filtros e posição salvos no mapa
 src/inject/dock-editor.js   ✎ para reordenar a barra de telas
 src/inject/hud-plus.js      HUD minimalista

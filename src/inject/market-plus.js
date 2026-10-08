@@ -1,5 +1,5 @@
-// Mercado+: filtro de moeda (Dollars / Diamonds) no Mercado Global.
-// Só mostra e esconde os anúncios que o jogo já carregou na página aberta: não busca nada, não clica em nada.
+// Mercado+: filtro de moeda (Dollars / Diamonds) no Mercado Global; no fim, o "Máx" do Comprar da Loja do Mark.
+// O filtro só mostra e esconde os anúncios que o jogo já carregou na página aberta: não busca nada, não clica em nada.
 // A lista do jogo é paginada no servidor (12 por página) e a API não tem filtro de moeda,
 // então o filtro vale para a página atual; o contador avisa quantos sobraram.
 (() => {
@@ -162,4 +162,77 @@
     apply();
   }, CHECK_MS);
   window.addEventListener('pb:data', e => { if (e.detail?.path === API) schedule(); });
+})();
+
+// Loja do Mark › Comprar: botão "Máx" em cada item, igual ao que o jogo já tem no Vender.
+// A pedido do jogador (clique no Máx), põe na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro
+// do limite do controle deslizante do jogo. Só preenche o campo; a compra continua no botão Comprar do jogo.
+(() => {
+  if (window.__pbMark) return;
+  window.__pbMark = true;
+
+  // Seletores do jogo (Loja do Mark). Ajuste aqui quando o jogo atualizar.
+  const WIN = '.mks-window';
+  const BUY_ROW = '.mks-row:has(.mks-buy)';  // só as linhas do Comprar têm o botão Comprar
+  const QTY_BAR = '.mks-qtybar';
+  const MONEY = '.nsh-gold';                  // "💲 1.320.196"
+  const PRICE = '.mks-price';                 // "💲5"
+  const CHECK_MS = 500;
+
+  const digits = s => { const d = String(s || '').replace(/\D/g, ''); return d ? Number(d) : NaN; };
+  const symbol = s => (String(s || '').match(/[^\d\s.,]+/) || [''])[0];  // 💲, 💎…
+  const fmt = n => n.toLocaleString('pt-BR');
+  function maxFor(row) {
+    const moneyText = row.closest(WIN)?.querySelector(MONEY)?.textContent;
+    const priceText = row.querySelector(PRICE)?.textContent;
+    const money = digits(moneyText), price = digits(priceText);
+    if (!(money >= 0) || !(price > 0)) return 0;
+    if (symbol(priceText) && symbol(moneyText) && symbol(priceText) !== symbol(moneyText)) return 0;  // outra moeda
+    let n = Math.floor(money / price);
+    for (const el of row.querySelectorAll(`${QTY_BAR} input`)) {
+      const cap = el.getAttribute('max');
+      if (cap !== null && cap !== '' && Number.isFinite(+cap)) n = Math.min(n, +cap);
+    }
+    return Math.max(0, n);
+  }
+  // Campo controlado pelo React: troca o valor pelo setter nativo e avisa com um "input", como se fosse digitado.
+  function setValue(input, v) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, String(v));
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function mount(win) {
+    for (const row of win.querySelectorAll(BUY_ROW)) {
+      const num = row.querySelector(`${QTY_BAR} input[type="number"]`);
+      if (!num) continue;
+      let b = row.querySelector('.pb-mks-max');
+      if (!b) {
+        b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'mks-qtymax nsh-chip pb-mks-max';  // classes do Máx do jogo: no design original fica igual a ele
+        b.textContent = 'Máx';
+        num.after(b);
+      }
+      const n = maxFor(row);
+      const tip = n ? `Pôr ${fmt(n)} na quantidade (o máximo que o dinheiro paga)` : 'O dinheiro não paga nenhum';
+      if (b.title !== tip) b.title = tip;
+      if (b.disabled !== !n) b.disabled = !n;
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('.pb-mks-max');
+    const row = b?.closest(BUY_ROW);
+    if (!row) return;
+    const n = maxFor(row);
+    const num = row.querySelector(`${QTY_BAR} input[type="number"]`);
+    if (!n || !num) return;
+    setValue(num, n);
+    // O controle deslizante acompanha o número; se o jogo não o atualizar sozinho, ajusta ele também
+    // (só se ele comporta o valor: sem "max" o navegador cortaria em 100 e o jogo leria 100).
+    const range = row.querySelector(`${QTY_BAR} input[type="range"]`);
+    if (range && Number(range.value) !== n && Number(range.max) >= n) setValue(range, n);
+  });
+
+  setInterval(() => { const win = document.querySelector(WIN); if (win) mount(win); }, CHECK_MS);
 })();

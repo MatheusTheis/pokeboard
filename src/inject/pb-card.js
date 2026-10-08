@@ -1,5 +1,6 @@
 // Card de informação do PokeBoard: um modal pequeno com a ficha de um Pokémon (ou de um item).
-// Usado pelo "Derrotados" do Hunt Analyzer (game-layout.js) e pelo Histórico do Mercado (market-plus.js).
+// Usado pelo Histórico do Mercado (market-plus.js) e pelo "Derrotados" do Hunt Analyzer (game-layout.js) quando a
+// Pokédex do jogo não mostra a espécie.
 // Só junta dados que o jogo já baixou (creatures.json, /api/game/pokedex) e os sprites colhidos pela Pokédex+.
 // Uso: window.__pbCard.open({ id | name, inst?: {...dados do anúncio...}, sale?: {...}, icon?, title? })
 (() => {

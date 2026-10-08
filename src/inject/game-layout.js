@@ -77,10 +77,15 @@
   document.addEventListener('pointermove', checkMoved, true);
   document.addEventListener('pointerup', () => { checkMoved(); drag = null; }, true);
 
-  // Hunt Analyzer: o card "Derrotados" abre a ficha do Pokémon da hunt atual (card do PokeBoard, pb-card.js).
+  // Hunt Analyzer: o card "Derrotados" abre a ficha do Pokémon da hunt atual na Pokédex do próprio jogo.
   // A hunt é o nome que o cartão do jogador mostra ("Nível 290 · Sneasel"). O card do jogo não tem ação;
-  // o clique é tratado só por nós.
+  // o clique é tratado só por nós: aperta o botão Pokédex da barra de telas e o card da espécie (só abre telas
+  // de consulta). Se a espécie não aparecer na grade (busca ou filtro da Pokédex ativos), mostra a ficha do
+  // PokeBoard (pb-card.js); fora de hunt (cidade ou área), também.
   const KILLS_LABEL = /derrotad/i;
+  const DEX_BTN = '.dock-btn[data-guide="dock-pokedex"]';
+  const DEX_WIN = '.dex-window';
+  const DEX_WAIT_MS = 5000;
   const huntName = () => (document.querySelector(LOCATION)?.textContent || '').split('·').pop().trim();
   function markKillsCard() {
     for (const c of document.querySelectorAll(`${HA_BODY} .ha-card`)) {
@@ -88,14 +93,49 @@
       if (is !== c.hasAttribute('data-pb-link')) c.toggleAttribute('data-pb-link', is);
     }
   }
-  document.addEventListener('click', e => {
+  const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+  async function waitFor(get, ms) {
+    for (const end = Date.now() + ms; ;) {
+      const v = get();
+      if (v || Date.now() > end) return v;
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+  // Card da espécie na grade: pelo nome ou pelo número ("#006").
+  const dexCell = (name, id) => [...document.querySelectorAll(`${DEX_WIN} .dex-cell`)].find(c =>
+    same(c.title, name) || same(c.querySelector('.dex-cell-name')?.textContent, name)
+    || (id && same(c.querySelector('.dex-cell-no')?.textContent, `#${String(id).padStart(3, '0')}`)));
+  async function openGameDex(name, id) {
+    let win = document.querySelector(DEX_WIN);
+    if (!win) {
+      const btn = document.querySelector(DEX_BTN);
+      if (!btn) return false;
+      btn.click();
+      win = await waitFor(() => document.querySelector(DEX_WIN), DEX_WAIT_MS);
+      if (!win) return false;
+    }
+    if (same(win.querySelector('.dex-detail-name')?.textContent, name)) return true;  // já está na ficha dela
+    win.querySelector('.dex-back')?.click();  // ficha de outra espécie aberta: volta para a grade
+    const cell = await waitFor(() => dexCell(name, id), DEX_WAIT_MS);
+    if (!cell) return false;
+    cell.click();
+    return true;
+  }
+  let opening = false;
+  document.addEventListener('click', async e => {
     const c = e.target.closest?.(`${HA_BODY} .ha-card[data-pb-link]`);
-    if (!c || !window.__pbCard) return;
+    if (!c || opening) return;
     const name = huntName();
-    const sp = window.__pbCard.species({ name });
-    window.__pbCard.open({
+    const kills = (c.querySelector('b')?.textContent || '').trim();
+    const sp = window.__pbCard?.species({ name });
+    // Sem a lista de espécies (creatures.json) ainda carregada não dá para saber se é hunt: tenta a Pokédex.
+    if (sp || !window.__pbCache?.['/game/creatures.json']) {
+      opening = true;
+      try { if (await openGameDex(sp?.name || name, sp?.pokeId)) return; } finally { opening = false; }
+    }
+    window.__pbCard?.open({
       name,
-      facts: [['Derrotados nesta sessão', (c.querySelector('b')?.textContent || '').trim()]],
+      facts: [['Derrotados nesta sessão', kills]],
       note: sp ? '' : `"${name}" não é uma hunt de Pokémon (cidade ou área). Vá para uma hunt para ver a ficha.`,
     });
   });

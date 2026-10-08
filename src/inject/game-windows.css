@@ -644,6 +644,114 @@
 }
 .game-root .cfg-window .cfg-logout { color: var(--pb-dex-red-ink) !important; }
 
+/* ---------- Lojas de NPC (.nsh-window: Mark, Depósito, Gift Center): peças comuns ---------- */
+.game-root .win-window .nsh-well {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-border), inset 0 2px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .nsh-window ::-webkit-scrollbar-track { background: var(--pb-shadow-ink) !important; border-radius: 0 !important; }
+.game-root .nsh-window ::-webkit-scrollbar-thumb { background: var(--pb-border) !important; border: 2px solid var(--pb-shadow-ink) !important; border-radius: 0 !important; }
+/* Dinheiro = visor de cristal líquido: tela escura, número em pixel amarelo. */
+.game-root .win-window .nsh-gold {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-pika-yellow) !important;
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important;
+  font: 400 10px/16px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+}
+/* Controle deslizante de quantidade: trilho escuro com moldura, enchimento em segmentos (como as outras barras)
+   e pino quadrado amarelo. */
+.game-root .win-window .nsh-tube {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-bar-track) !important;
+  box-shadow: 0 0 0 2px var(--pb-border) !important;
+}
+.game-root .win-window .nsh-tube-fill {
+  border-radius: 0 !important;
+  background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important;
+}
+.game-root .win-window .nsh-tube-fill::before,
+.game-root .win-window .nsh-tube-fill::after { display: none !important; }
+.game-root .win-window .nsh-range::-webkit-slider-thumb {
+  width: 14px !important;
+  height: 22px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-pika-yellow) !important;
+  box-shadow: var(--pb-frame-ink), 2px 2px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .win-window .nsh-range:focus-visible::-webkit-slider-thumb { box-shadow: var(--pb-frame-focus), 2px 2px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .win-window .nsh-num { font-weight: 700 !important; }
+
+/* ---------- Loja do Mark (.mks-window: Comprar, Vender, Pokémon) ----------
+   Cada item é um cartão quadrado com o ícone num "slot" de tela; o selecionado ganha moldura amarela.
+   "Máx" (.mks-qtymax): o do Vender é do jogo; o do Comprar (.pb-mks-max) é nosso, em market-plus.js. */
+.game-root .mks-window .mks-row {
+  margin-bottom: 10px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  filter: none !important;
+}
+.game-root .mks-window .mks-row:hover { background: var(--pb-surface-raised) !important; }
+.game-root .mks-window .mks-row.on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .mks-window .mks-ico { background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .mks-window .mks-name { color: var(--pb-ink) !important; font: 600 15px/18px var(--pb-font-body) !important; }
+.game-root .mks-window .mks-meta { color: var(--pb-ink-muted) !important; font: 500 12px/15px var(--pb-font-body) !important; }
+.game-root .mks-window .mks-price { color: var(--pb-pika-yellow) !important; font: 400 9px/14px var(--pb-font-pixel) !important; letter-spacing: 0 !important; }
+.game-root .mks-window .mks-qtymax {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-pika-yellow) !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  font: 400 8px/12px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  filter: none !important;
+}
+.game-root .mks-window .mks-qtymax:hover:not(:disabled) { filter: brightness(1.15) !important; }
+.game-root .mks-window .mks-qtymax:active:not(:disabled) { transform: translate(2px, 2px) !important; box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .mks-window .mks-qtymax:disabled { opacity: .45 !important; cursor: default !important; }
+.game-root .mks-window .mks-lock { filter: none !important; }
+/* Aba Pokémon: barra de filtros (busca, IV, raridades). As raridades mantêm a cor do jogo; a desligada fica apagada. */
+.game-root .mks-window .mks-fbar {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .mks-window :is(.mks-flabel, .mks-fdash) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .mks-window .mks-fgrade {
+  border-width: 2px !important;
+  border-style: solid !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: 2px 2px 0 0 var(--pb-shadow-ink) !important;
+  font: 600 12px/14px var(--pb-font-body) !important;
+}
+.game-root .mks-window .mks-fgrade:not(.on) { opacity: .4 !important; text-decoration: line-through !important; box-shadow: none !important; }
+.game-root .mks-window .mks-flash { color: var(--pb-ink) !important; font: 600 13px/18px var(--pb-font-body) !important; }
+.game-root .mks-window .mks-empty { color: var(--pb-ink-muted) !important; font-style: normal !important; }
+.game-root .mks-window .mks-remote {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-poke-blue) !important;
+  box-shadow: 0 0 0 2px var(--pb-poke-blue) !important;
+}
+.game-root .mks-window .mks-loaderr {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-dex-red-ink) !important;
+  box-shadow: 0 0 0 2px var(--pb-dex-red) !important;
+}
+
 /* ---------- Pokédex: ficha do Pokémon (detalhe dentro da janela) ---------- */
 .game-root .dex-window .dex-back {
   border: 0 !important;
