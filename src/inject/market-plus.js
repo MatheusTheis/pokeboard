@@ -86,6 +86,9 @@
   // (window.__pbPrices, mais abaixo). Ligado, os que rendem mais no Mercado vão para o começo, do maior ganho total
   // (ganho por unidade × quantidade) para o menor, com o ganho no canto; os outros ficam apagados no fim.
   // Só ordem (CSS order) e atributos nos cards do jogo; escolher e anunciar continua nos botões do jogo.
+  // Ligado, clicar num item também preenche o formulário do jogo: moeda dollars, quantidade = tudo que você tem e
+  // preço = o anúncio mais barato (nunca abaixo do que o Mark paga, que o jogo não aceita). Quem anuncia é o botão
+  // Anunciar do jogo, com a confirmação dele.
   const SELL_PICK = ':scope > .mkt-pick:not(.mkt-pick-pk)';  // grade de itens do Anunciar (a de Pokémon é .mkt-pick-pk)
   const num = s => Number(String(s || '').replace(/\D/g, '')) || 0;
   const fmt = n => n.toLocaleString('pt-BR');
@@ -108,8 +111,8 @@
       const name = t.querySelector('img')?.alt || '';
       const m = market?.items[P.norm(name)], mark = P.npc(name), qty = num(t.querySelector('.mkt-tile-qty')?.textContent) || 1;
       if (!m || mark === undefined) return { t, i, name, gain: null, why: !m ? 'sem anúncio em dollars no Mercado' : 'sem o preço do Mark' };
-      const v = P.net(m.p);
-      return { t, i, name, v, mark, qty, m, gain: (v - mark) * qty };
+      const v = P.net(m.p), total = m.p * qty;
+      return { t, i, name, v, mark, qty, m, gain: total - P.fee(total) - mark * qty };
     });
     const good = rows.filter(r => r.gain > 0).sort((a, b) => b.gain - a.gain);
     good.forEach((r, k) => { r.order = k; });
@@ -131,6 +134,35 @@
     if (worthBtn.textContent !== label) worthBtn.textContent = label;  // só se mudou: o texto também é mudança no DOM observado
     setAttr(worthBtn, 'aria-pressed', String(worthOn));
   }
+
+  // Preenche o formulário do jogo depois do clique num item (o jogo seleciona e zera a quantidade antes).
+  // Campos controlados pelo React: valor pelo setter nativo + o evento que o React escuta.
+  const setNative = (el, v, ev) => {
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, String(v));
+    el.dispatchEvent(new Event(ev, { bubbles: true }));
+  };
+  // Os dois formulários (itens e Pokémon) são irmãos: vale o primeiro campo antes da grade de Pokémon.
+  const itemField = (form, sel) => {
+    const pk = form.querySelector(':scope > .mkt-pick-pk');
+    return [...form.querySelectorAll(sel)].find(el => !pk || el.compareDocumentPosition(pk) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
+  };
+  function fillSale(tile) {
+    const form = tile.closest(SELLFORM), P = window.__pbPrices;
+    if (!form || !P || !tile.classList.contains('on')) return;  // clique que desmarcou o item
+    const name = tile.querySelector('img')?.alt || '';
+    const m = P.market()?.items[P.norm(name)];
+    const cur = itemField(form, 'select.mkt-sel');
+    if (cur && !cur.disabled && cur.value !== 'GOLD') setNative(cur, 'GOLD', 'change');
+    const qty = itemField(form, 'input.mkt-qslider-range');  // só existe com mais de 1 unidade
+    if (qty && qty.value !== qty.max) setNative(qty, qty.max, 'input');
+    const price = itemField(form, 'input.mkt-num');
+    if (price && m) setNative(price, Math.max(m.p, P.npc(name) || 0), 'input');
+  }
+  document.addEventListener('click', e => {
+    if (!worthOn) return;
+    const tile = e.target.closest?.(`${SELLFORM} > .mkt-pick:not(.mkt-pick-pk) .mkt-tile`);
+    if (tile) setTimeout(() => fillSale(tile), 60);
+  });
 
   const money = (n, cur) => `${Number(n || 0).toLocaleString('pt-BR')} ${cur === 'DIAMONDS' ? 'diamonds' : 'dollars'}`;
   function openSale(row, i) {
@@ -228,7 +260,8 @@
   const MARKET_API = '/api/game/market';  // resposta guardada pelo hook.js: listings[] com preço por unidade
   const ITEMS = '/game/items.json';       // arquivo público do jogo; normalmente o hook já guardou
   const KEY = 'pb:market-min';            // localStorage do painel: o mais barato de cada item + a hora
-  const FEE = 0.03;                       // taxa do Mercado sobre vendas em dollars
+  const FEE = 0.03;                       // taxa do Mercado sobre vendas em dollars (2% para VIP, no código do jogo)
+  const FEE_CAP = 1e6;                    // a taxa de um anúncio não passa disso
 
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const species = name => norm(String(name || '').replace(/\s+lv\.?\s*\d+$/i, ''));  // "Larvitar Lv.1" -> "larvitar"
@@ -274,7 +307,8 @@
   window.__pbPrices = {
     FEE, norm, species,
     market: () => market,
-    net: p => Math.floor(p * (1 - FEE)),          // o que o vendedor recebe no Mercado
+    net: p => Math.floor(p * (1 - FEE)),          // o que o vendedor recebe no Mercado, por unidade
+    fee: total => Math.min(FEE_CAP, Math.floor(total * FEE)),  // taxa de um anúncio, como o jogo calcula
     npc: name => npcMap()?.get(norm(name)),        // o que o Mark paga; undefined = sem dado
   };
 })();

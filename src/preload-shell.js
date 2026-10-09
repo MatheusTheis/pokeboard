@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld('board', {
   reload: i => ipcRenderer.send('pb:reload', i),
   reloadAll: () => ipcRenderer.send('pb:reload-all'),
   setSkin: on => ipcRenderer.send('pb:set-skin', on),  // true = visual PokeBoard, false = design original do jogo
+  setFps: fps => ipcRenderer.send('pb:set-fps', fps),  // Economia: 0 (sem limite), 30 ou 20 quadros por segundo
+  onMetrics: cb => ipcRenderer.on('pb:metrics', (_, data) => cb(data)),
   devtools: i => ipcRenderer.send('pb:devtools', i),
   openTheme: () => ipcRenderer.send('pb:open-theme'),
   rename: (i, name) => ipcRenderer.send('pb:rename', i, name),

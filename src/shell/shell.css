@@ -29,6 +29,12 @@ button { font: inherit; }
 }
 .brand { margin: 0 4px 0 2px; color: var(--pb-on-red); font: 400 8px/12px var(--pb-font-pixel); text-transform: uppercase; white-space: nowrap; }
 .spacer { flex: 1; }
+/* Medidor de memória: texto pequeno na carcaça (amarelo quando alto) e no cabeçalho de cada conta. */
+.ram { color: var(--pb-on-red); font: 600 13px/18px var(--pb-font-body); font-variant-numeric: tabular-nums; white-space: nowrap; opacity: .9; }
+.ram.is-high { color: var(--pb-pika-yellow); opacity: 1; }
+.cell-head .ram { flex: none; color: var(--pb-ink-muted); font-size: 12px; }
+.cell-head .ram.is-high { color: var(--pb-pika-yellow); }
+#btnFps[aria-pressed="true"] { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
 .seg { display: flex; }
 .topbar .pr-btn { padding-top: 1px; padding-bottom: 1px; font-size: 14px; }
 

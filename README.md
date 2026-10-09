@@ -26,10 +26,11 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | | |
 |---|---|
 | **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
+| **Economia** | Botão de quadros por segundo na barra vermelha (60 → 30 → 20): o jogo desenha menos, a GPU e o processador trabalham menos; a hunt continua no servidor. Medidor de memória da GPU, do total e de cada conta. |
 | **Zoom por painel** | Cada painel calcula o zoom para o jogo caber; ajuste fino com `−` `+` ou `Ctrl` + roda do mouse, salvo por conta. |
 | **Visual PokeBoard Retro** | Barra de telas no topo inteiro, cartão do jogador, barras segmentadas, chat e as janelas do jogo (Mercado, Pokédex, Breeding, Equipe, Streak, Missões, Perfil, Configurações, lojas de NPC, Daily Kill, Profissões, Rankings, Todos os Shinys, Slot Machine, Inventário, menu da conta) com carcaça vermelha e moldura de pixel. |
 | **Barra de telas organizável** | Botão ✎ para reordenar os ícones (vale para todas as contas). No modo dividido, ícones grandes com rolagem pela roda do mouse. |
-| **Mercado** | Filtro de moeda (Dollars / Diamonds), Anunciar itens e Pokémon numa tela só, e card com os detalhes ao clicar numa venda do Histórico. No Anunciar, **Vale vender** põe primeiro os itens que rendem mais no Mercado (anúncio mais barato em dollars, menos 3%) do que no Mark, com o ganho total no canto. |
+| **Mercado** | Filtro de moeda (Dollars / Diamonds), Anunciar itens e Pokémon numa tela só, e card com os detalhes ao clicar numa venda do Histórico. No Anunciar, **Vale vender** põe primeiro os itens que rendem mais no Mercado (anúncio mais barato em dollars, menos 3%) do que no Mark, com o ganho total no canto; ligado, clicar num item já preenche dollars, a quantidade que você tem e o preço do anúncio mais barato. |
 | **Loja do Mark** | Visual Retro nas abas Comprar, Vender e Pokémon, com o dinheiro num visor. No Comprar, **Máx** põe na quantidade o máximo que o dinheiro paga; a compra continua no botão Comprar do jogo. Nas três abas, cada item (ou espécie, no Pokémon) mostra o anúncio mais barato em dollars do Mercado, da última vez que o Mercado foi aberto, em verde quando o Mercado é o melhor negócio: no Comprar, mais barato que o Mark; no Vender e no Pokémon, rendendo mais que o Mark já sem a taxa de 3%. |
 | **Mapa** | Filtros próprios (busca, nível, tipos) e posição do mapa que ficam salvos ao fechar e reabrir; marcadores limpos para ver de longe. |
 | **Hunt Analyzer** | Abre num lugar livre da tela; "Capturados" abre o log de capturas e "Derrotados" abre a Pokédex do jogo na ficha do Pokémon da hunt. |
@@ -85,6 +86,20 @@ Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está abe
 
 O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, Máx da Loja do Mark, extras da Pokédex, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
 
+### Memória e desempenho
+
+O botão **60 fps** na barra vermelha limita quantos quadros por segundo as contas desenham (30 ou 20). Ao lado, o medidor mostra a memória da GPU (que desenha todas as contas) e o total; cada conta mostra a sua no cabeçalho, em amarelo quando passa de 1,5 GB. No modo Foco, as contas escondidas já param de desenhar.
+
+Ao abrir, o PokeBoard também ajusta o motor do navegador para gastar menos memória. Os valores ficam em `%APPDATA%\poke-board\board.json`, em `engine`, e valem na próxima vez que o app abrir:
+
+| Opção | Padrão | O que faz |
+|---|---|---|
+| `gpuMemMB` | 1024 | Teto de memória da GPU para desenhar as páginas. `0` = padrão do Chromium. |
+| `gpuCacheMB` | 256 | Teto do cache de imagens já preparadas na GPU. `0` = padrão do Chromium. |
+| `v8Small` | true | JavaScript das contas no modo que economiza memória (um pouco mais lento). |
+
+Se aparecerem partes da tela em branco por um instante, aumente `gpuMemMB`.
+
 ### Quantas contas
 
 O padrão é 2. Para 1 a 4, troque `accountCount` em `%APPDATA%\poke-board\board.json` e reabra o app.
@@ -108,6 +123,7 @@ O jogo proíbe macros e automação sem autorização; a staff autorizou melhori
   - **Derrotados**, no Hunt Analyzer, aperta o botão Pokédex e o card da espécie (só telas de consulta);
   - **Viajar para a hunt**, no botão direito de um card da Pokédex, aperta Mapa, a área e o "Viajar para" da hunt escolhida;
   - **Máx**, na Loja do Mark, preenche o campo de quantidade; quem compra é o botão Comprar do jogo;
+  - **Vale vender** ligado, no Anunciar do Mercado, preenche moeda, quantidade e preço ao clicar num item; quem anuncia é o botão Anunciar do jogo, com a confirmação dele;
 - **só lê:** os scripts injetados leem o DOM e as respostas que o jogo já buscou; não chamam rotas de ação;
 - **não redistribui arte:** sprites e imagens do jogo são lidos em tempo de execução e guardados só no cache local; nada disso entra neste repositório;
 - **não quebra o jogo:** CSS e scripts usam prefixos próprios (`.pr-`, `#pb-`, `pb:`, `--pb-`) e não substituem funções do jogo (o único gancho observa `fetch`/`XMLHttpRequest` e devolve a resposta intacta);
@@ -125,6 +141,7 @@ src/shell/                  interface do board (barra vermelha e cabeçalhos dos
 src/ui/tokens.css           cores, fontes e medidas do design system (prefixo --pb-)
 src/ui/retro.css            componentes .pr-* (botão, lente, LEDs, campo)
 src/inject/hook.js          observa (só leitura) as respostas JSON do jogo
+src/inject/fps.js           Economia: limita os quadros por segundo que o jogo desenha
 src/inject/game-skin.css    layout e visual do HUD, chat, mapa, Pokédex e Hunt Analyzer
 src/inject/game-windows.css visual das janelas do jogo, atalhos e card de informação
 src/inject/game-layout.js   medidas de layout, céu do Shopping, atalho Mercado · Mark, Derrotados → Pokédex

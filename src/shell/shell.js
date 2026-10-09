@@ -22,6 +22,9 @@ function renderAccounts(state) {
     btn.setAttribute('aria-pressed', String(btn.dataset.layout === state.layout)));
   // "Original" pressionado = design original do jogo (visual PokeBoard desligado).
   $('#btnSkin').setAttribute('aria-pressed', String(state.skin === false));
+  const fps = state.prefs?.fps || 0;
+  $('#btnFps').textContent = fps ? `${fps} fps` : '60 fps';
+  $('#btnFps').setAttribute('aria-pressed', String(!!fps));
 }
 
 function startRename(btn, i, name) {
@@ -58,6 +61,7 @@ function renderCells({ cells, state }) {
         <button class="ico zoom-val${c.autoZoom ? ' is-auto' : ''}" data-a="zoom-auto" aria-label="${zoomTip}" title="${zoomTip}">${pct}</button>
         <button class="ico" data-a="zoom-in" aria-label="Aumentar zoom" title="Aumentar zoom (Ctrl+=)">+</button>
       </span>
+      <span class="ram" data-ram="${i}"></span>
       ${layoutBtn}
       <button class="ico" data-a="reload" title="Recarregar este painel" aria-label="Recarregar este painel">↻</button>
       <button class="ico" data-a="devtools" title="Inspecionar elementos (DevTools)" aria-label="Inspecionar elementos">⌕</button>`;
@@ -73,11 +77,34 @@ function renderCells({ cells, state }) {
     };
     box.append(h);
   });
+  showMetrics();
 }
+
+// Medidor de memória: GPU e total na barra vermelha, cada conta no cabeçalho dela. Amarelo quando passa do limite.
+const RAM_WARN = { panel: 1500, gpu: 2000 };
+let metrics = null;
+const gb = mb => (mb >= 1000 ? `${(mb / 1024).toFixed(1).replace('.', ',')} GB` : `${mb} MB`);
+function showMetrics() {
+  if (!metrics) return;
+  const top = $('#ram');
+  top.textContent = `GPU ${gb(metrics.gpu.mb)} · Total ${gb(metrics.total)}`;
+  top.classList.toggle('is-high', metrics.gpu.mb > RAM_WARN.gpu);
+  document.querySelectorAll('[data-ram]').forEach(el => {
+    const p = metrics.panels[+el.dataset.ram];
+    if (!p) return;
+    el.textContent = gb(p.mb);
+    el.title = `Memória desta conta: ${p.mb} MB em uso${p.priv ? ` (${p.priv} MB reservados)` : ''}`;
+    el.classList.toggle('is-high', p.mb > RAM_WARN.panel);
+  });
+}
+board.onMetrics(m => { metrics = m; showMetrics(); });
 
 board.onLayout(data => { current = data.state; renderAccounts(data.state); renderCells(data); });
 board.getState().then(s => { current = s; renderAccounts(s); });
 document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.setLayout(b.dataset.layout));
 $('#btnReloadAll').onclick = () => board.reloadAll();
 $('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
+// Economia: sem limite → 30 → 20 → sem limite.
+const FPS_STEPS = [0, 30, 20];
+$('#btnFps').onclick = () => board.setFps(FPS_STEPS[(FPS_STEPS.indexOf(current?.prefs?.fps || 0) + 1) % FPS_STEPS.length]);
 $('#btnTheme').onclick = () => board.openTheme();

@@ -48,6 +48,7 @@ const PANEL_CSS = [
 ];
 const INJECT = {
   hook: path.join(__dirname, 'inject', 'hook.js'),
+  fps: path.join(__dirname, 'inject', 'fps.js'),
   pokedex: path.join(__dirname, 'inject', 'pokedex-plus.js'),
   layout: path.join(__dirname, 'inject', 'game-layout.js'),
   market: path.join(__dirname, 'inject', 'market-plus.js'),
@@ -58,6 +59,21 @@ const INJECT = {
   card: path.join(__dirname, 'inject', 'pb-card.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
+
+// ---------- motor: economia de memória ----------
+// O Chromium só lê estas opções ao abrir o app. Ficam em board.json → "engine" (0 = padrão do Chromium):
+//   gpuMemMB    teto de memória da GPU para desenhar as páginas (force-gpu-mem-available-mb)
+//   gpuCacheMB  teto do cache de imagens já preparadas na GPU (force-gpu-mem-discardable-limit-mb)
+//   v8Small     JavaScript das contas no modo que economiza memória (--optimize-for-size), um pouco mais lento
+const ENGINE_DEF = { gpuMemMB: 1024, gpuCacheMB: 256, v8Small: true };
+function cleanEngine(e) {
+  const mb = (v, d) => (Number.isFinite(v) && v >= 0 && v <= 16384 ? Math.floor(v) : d);
+  return { gpuMemMB: mb(e?.gpuMemMB, ENGINE_DEF.gpuMemMB), gpuCacheMB: mb(e?.gpuCacheMB, ENGINE_DEF.gpuCacheMB), v8Small: e?.v8Small !== false };
+}
+const engine = (() => { try { return cleanEngine(JSON.parse(fs.readFileSync(STATE_PATH(), 'utf8'))?.engine); } catch { return cleanEngine(null); } })();
+if (engine.gpuMemMB) app.commandLine.appendSwitch('force-gpu-mem-available-mb', String(engine.gpuMemMB));
+if (engine.gpuCacheMB) app.commandLine.appendSwitch('force-gpu-mem-discardable-limit-mb', String(engine.gpuCacheMB));
+if (engine.v8Small) app.commandLine.appendSwitch('js-flags', '--optimize-for-size');
 // Ícone da janela e da barra de tarefas (gerado por scripts/make-icon.js). No Windows o .ico tem todos os tamanhos.
 const ICON_PATH = path.join(__dirname, '..', 'assets', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 
@@ -79,9 +95,11 @@ let state = {
   dockOrder: [],             // ordem dos ícones da barra de telas (data-guide do jogo); vazio = ordem do jogo
   prefs: {},                 // preferências dos botões nossos dentro do jogo (ver PREFS), iguais para todas as contas
   skin: true,                // visual PokeBoard no jogo; false = design original do jogo
+  engine,                    // opções do motor (acima); só valem ao abrir o app
 };
 // Preferências que os scripts injetados podem salvar. Cada uma tem um validador: devolve o valor limpo,
 // ou undefined para recusar (o que vem do jogo nunca entra no board.json sem passar por aqui).
+const FPS_STEPS = [0, 30, 20];  // ordem do botão: sem limite → 30 → 20 → sem limite
 const GAME_TYPES = ['NORMAL', 'FIRE', 'WATER', 'ELECTRIC', 'GRASS', 'ICE', 'FIGHTING', 'POISON', 'GROUND',
   'FLYING', 'PSYCHIC', 'BUG', 'ROCK', 'GHOST', 'DRAGON', 'DARK', 'STEEL', 'FAIRY'];
 const PREFS = {
@@ -89,6 +107,8 @@ const PREFS = {
   hudMin: { def: false, clean: v => (typeof v === 'boolean' ? v : undefined) },
   // mapa (map-plus.js): filtros e centro da vista por região, para voltar igual ao reabrir
   map: { def: null, clean: cleanMapPref },
+  // Economia (botão na barra vermelha, fps.js): quadros por segundo de cada conta; 0 = sem limite
+  fps: { def: 0, clean: v => (FPS_STEPS.includes(v) ? v : undefined) },
 };
 function cleanMapPref(v) {
   if (!v || typeof v !== 'object') return undefined;
@@ -121,6 +141,7 @@ function loadState() {
     dockOrder: cleanDockOrder(saved.dockOrder),
     prefs: Object.fromEntries(Object.entries(PREFS).map(([k, p]) => [k, p.clean(saved.prefs?.[k]) ?? p.def])),
     skin: saved.skin !== false,
+    engine,
   };
 }
 const clampAdjust = a => Math.min(5, Math.max(0.2, a));
@@ -268,6 +289,7 @@ function createView(i) {
       contextIsolation: true,
       sandbox: true,
       backgroundThrottling: true,
+      spellcheck: false,  // sem corretor: não carrega dicionário em cada conta
     },
   });
   const wc = view.webContents;
@@ -375,7 +397,34 @@ ipcMain.on('pb:set-skin', (_, on) => {
   views.forEach((_, i) => applyTheme(i));
   layout();  // o shell recebe o estado novo e atualiza o botão
 });
+// Economia: limite de quadros por segundo, igual para todas as contas (o fps.js de cada painel aplica).
+ipcMain.on('pb:set-fps', (_, fps) => {
+  const clean = PREFS.fps.clean(fps);
+  if (clean === undefined) return;
+  state.prefs.fps = clean;
+  saveState();
+  views.forEach(v => v.webContents.send('pb:prefs', state.prefs));
+  layout();  // o shell recebe o estado novo e atualiza o botão
+});
 ipcMain.on('pb:devtools', (_, i) => views[i]?.webContents.openDevTools({ mode: 'detach' }));
+
+// ---------- medidor de memória (barra vermelha e cabeçalho de cada conta) ----------
+// Memória em uso (working set) de cada conta, da GPU e do total, a cada 3 s. Em KB no Electron; mandamos em MB.
+const METRICS_MS = 3000;
+function sendMetrics() {
+  if (!win || win.isDestroyed()) return;
+  const all = app.getAppMetrics();
+  const byPid = new Map(all.map(p => [p.pid, p]));
+  const mb = p => (p ? Math.round(p.memory.workingSetSize / 1024) : 0);
+  const priv = p => (p?.memory.privateBytes ? Math.round(p.memory.privateBytes / 1024) : 0);
+  const pidOf = v => { try { return v.webContents.isDestroyed() ? 0 : v.webContents.getOSProcessId(); } catch { return 0; } };
+  const gpu = all.find(p => p.type === 'GPU');
+  win.webContents.send('pb:metrics', {
+    panels: views.map(v => { const p = byPid.get(pidOf(v)); return { mb: mb(p), priv: priv(p) }; }),
+    gpu: { mb: mb(gpu), priv: priv(gpu) },
+    total: all.reduce((s, p) => s + mb(p), 0),
+  });
+}
 ipcMain.on('pb:open-theme', () => shell.openPath(THEME_PATH));
 ipcMain.on('pb:rename', (_, i, name) => {
   if (!state.accounts[i]) return;
@@ -409,7 +458,7 @@ app.whenReady().then(() => {
     title: 'PokeBoard',
     icon: ICON_PATH,
     autoHideMenuBar: true,
-    webPreferences: { preload: path.join(__dirname, 'preload-shell.js'), contextIsolation: true, sandbox: true },
+    webPreferences: { preload: path.join(__dirname, 'preload-shell.js'), contextIsolation: true, sandbox: true, spellcheck: false },
   });
   win.loadFile(path.join(__dirname, 'shell', 'index.html'));
   if (state.focus >= state.accountCount) state.focus = 0;
@@ -420,6 +469,7 @@ app.whenReady().then(() => {
   win.webContents.on('before-input-event', handleShortcut);
   layout();
   watchTheme();
+  setInterval(sendMetrics, METRICS_MS);
   if (process.env.PB_RECORD) recorder = createRecorder({ views, isGameUrl, log: m => console.log(m) });
 });
 app.on('window-all-closed', () => app.quit());

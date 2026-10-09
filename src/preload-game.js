@@ -70,8 +70,11 @@ window.addEventListener('pb:dock-order-save', () => {
   try { ipcRenderer.send('pb:set-dock-order', JSON.parse(document.documentElement.dataset.pbDockOrder || '[]')); } catch {}
 });
 
-const hook = ipcRenderer.sendSync('pb:inject-source', 'hook');
-if (hook) webFrame.executeJavaScript(hook).catch(e => console.error('[PokeBoard] hook', e));
+// Antes dos scripts do jogo: o hook (observa os dados) e o limitador de quadros da Economia.
+for (const name of ['hook', 'fps']) {
+  const src = ipcRenderer.sendSync('pb:inject-source', name);
+  if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
+}
 
 window.addEventListener('DOMContentLoaded', () => {
   for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex']) {
