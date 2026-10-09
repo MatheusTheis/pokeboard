@@ -1462,8 +1462,11 @@
 
 /* ---------- Hunt Analyzer ao lado do Auto-Helper ----------
    É o próprio botão da barra de telas (data-guide="dock-analyzer"), tirado da barra e fixado à esquerda do
-   Auto-Helper: clicar continua abrindo a janela pelo jogo. A barra perde esse ícone (sem vão). */
+   Auto-Helper: clicar continua abrindo a janela pelo jogo. A barra perde esse ícone (sem vão).
+   A barra tem zoom: var(--ui-scale) (a escala da interface, que cada conta escolhe nas configurações do jogo);
+   o botão desfaz esse zoom para ter o mesmo tamanho e a mesma posição em todas as contas, como o Auto-Helper. */
 .game-root .game-dock .dock-btn[data-guide="dock-analyzer"] {
+  zoom: calc(1 / var(--ui-scale, 1)) !important;
   position: fixed !important;
   top: var(--pb-top) !important;
   right: calc(16px + 190px + 10px) !important;
