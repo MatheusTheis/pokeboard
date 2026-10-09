@@ -381,18 +381,20 @@
 
   const SORTS = [['', 'Ordem: Nº'], ['hunt', 'Ordem: Nível da hunt'], ['hunt-desc', 'Ordem: Nível da hunt ↓']];
   const STAT_FILTERS = [[/^desbloquead/i, 'unlocked', 'Mostrar só os desbloqueados'], [/^bloquead/i, 'locked', 'Mostrar só os bloqueados (menos abates que o necessário)']];
-  let sort = '';    // vale enquanto o painel estiver aberto
-  let filter = '';  // '', 'locked' ou 'unlocked'; zera a cada abertura, como o filtro do jogo
-  // Em "Bloqueados", esconde os capturados. Fica salvo (prefs.dexHideCaught no board.json): a Pokédex reabre como
-  // ficou da última vez, já em "Bloqueados" se estava ligado. Sair de "Bloqueados" desliga e salva também.
-  let hideCaught = false;
-  const savedHide = () => { try { return !!JSON.parse(document.documentElement.dataset.pbPrefs || '{}').dexHideCaught; } catch { return false; } };
-  function setHide(v) {
-    if (hideCaught === v) return;
-    hideCaught = v;
-    document.documentElement.dataset.pbPrefSave = JSON.stringify({ key: 'dexHideCaught', value: v });
-    window.dispatchEvent(new Event('pb:pref-save'));
+  // O que é nosso na Pokédex volta como ficou da última vez, em cada conta (localStorage do painel, que sobrevive a
+  // recarregar e a fechar o app): a ordem, o filtro Bloqueados/Desbloqueados e o esconder capturados.
+  const VIEW_KEY = 'pb:dex-view';
+  const loadView = () => { try { return JSON.parse(localStorage.getItem(VIEW_KEY) || '{}') || {}; } catch { return {}; } };
+  const saveView = () => { try { localStorage.setItem(VIEW_KEY, JSON.stringify({ sort, filter, hideCaught })); } catch {} };
+  let sort = SORTS.some(([v]) => v === loadView().sort) ? loadView().sort : '';
+  let filter = '';         // '', 'locked' ou 'unlocked'
+  let hideCaught = false;  // em "Bloqueados", esconde os capturados; sair de "Bloqueados" desliga
+  function restoreView() {
+    const v = loadView();
+    filter = v.filter === 'locked' || v.filter === 'unlocked' ? v.filter : '';
+    hideCaught = !!v.hideCaught && filter === 'locked';
   }
+  function setHide(v) { hideCaught = v; saveView(); }
   let win = null, gridEl = null, mo = null, pending = 0, lastSkin = null;
   const clones = new Map();  // "id:hunt" -> card copiado
 
@@ -527,7 +529,7 @@
   select.setAttribute('aria-label', 'Ordem da Pokédex');
   select.title = 'Ordem dos cards. Por nível da hunt, a espécie com mais de uma hunt aparece uma vez por hunt.';
   select.innerHTML = SORTS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
-  select.addEventListener('change', () => { sort = select.value; apply(); });
+  select.addEventListener('change', () => { sort = select.value; saveView(); apply(); });
 
   function mountControls(on) {
     const ctr = win.querySelector(CONTROLS);
@@ -575,7 +577,7 @@
   }
   function toggleFilter(f) {
     filter = filter === f ? '' : f;
-    if (filter !== 'locked') setHide(false);
+    setHide(hideCaught && filter === 'locked');
     if (win) markStats(skinOn());
   }
 
@@ -660,8 +662,8 @@
     if (e.target.closest?.(`${WIN} .pb-dex-hidecaught`)) {  // ícone de "Bloqueados": liga junto o filtro
       e.preventDefault();
       e.stopPropagation();
+      if (!hideCaught) filter = 'locked';
       setHide(!hideCaught);
-      if (hideCaught) filter = 'locked';
       if (win) markStats(skinOn());
       return;
     }
@@ -720,7 +722,7 @@
   setInterval(() => {
     watchCatch();
     const w = document.querySelector(WIN);
-    if (w !== win) { win = w; hideCaught = savedHide(); filter = hideCaught ? 'locked' : ''; }
+    if (w !== win) { win = w; restoreView(); }
     const g = win?.querySelector(GRID) || null;
     if (g !== gridEl) {
       mo?.disconnect();
