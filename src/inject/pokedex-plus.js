@@ -351,6 +351,7 @@
 //   capturas de todas as formas contam juntos na espécie.
 // - Botão direito num card: escolher uma hunt da espécie e viajar até ela pelo mapa do jogo. A pedido do jogador,
 //   aperta os mesmos botões que ele apertaria (Mapa, a área e o "Viajar para" da hunt).
+// - Captura com a Pokédex aberta: ela se atualiza sem fechar (abaixo, "captura").
 // A grade continua sendo a do jogo: a ordem é só CSS (order) e as cópias são nossas, marcadas com data-pb-clone.
 (() => {
   if (window.__pbDexGame) return;
@@ -369,6 +370,9 @@
   const LOCATION = '.game-root .phud-tloc';      // "Nível 290 · Sneasel"
   const CREATURES = '/game/creatures.json';
   const MARKERS = '/api/game/map-markers';       // hunts do mapa: nome, nível e área
+  const DEX_API = '/api/game/pokedex';           // o que a Pokédex do jogo busca ao abrir
+  const CATCH_FLASH = '.cap-flash';              // aviso da barra de captura: "🎉 Larvitar capturado com Poké Ball!"
+  const CATCH_OK = '🎉';                         // só o aviso de captura começa assim (o de fuga não)
   const BASE_MAX_ID = 10000;                     // espécies da Pokédex; as formas (Brave, Mega…) têm id acima
   const NO_HUNT = 1e8;                           // sem hunt conhecida: no fim da grade
   const WAIT_MS = 5000;
@@ -644,10 +648,39 @@
   window.addEventListener('pb:data', e => {
     const p = e.detail?.path;
     if (p === CREATURES || p === MARKERS) { index = null; if (gridEl) schedule(); }
+    if (p === DEX_API && gridEl) schedule();  // capturou/desbloqueou: as cópias da ordem por hunt copiam de novo
   });
+
+  // ---------- captura: atualiza a Pokédex aberta ----------
+  // A Pokédex do jogo só busca os dados ao abrir. Quando a barra de captura avisa uma captura, chamamos de novo a
+  // função da própria janela que faz essa busca (o mesmo GET de leitura que roda ao abrir; o jogo usa o login dele,
+  // nada passa por nós). A grade e a ficha aberta se atualizam sem fechar, com busca, filtros e rolagem no lugar.
+  // A função fica guardada no componente da janela (hook useCallback do React); achamos pela rota que ela busca.
+  function dexReload() {
+    const el = document.querySelector(WIN);
+    const key = el && Object.keys(el).find(k => k.startsWith('__reactFiber$'));
+    for (let f = key ? el[key] : null, depth = 0; f && depth < 40; f = f.return, depth++) {
+      if (typeof f.type !== 'function') continue;
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const v = h.memoizedState;
+        if (Array.isArray(v) && typeof v[0] === 'function' && String(v[0]).includes(DEX_API) && !String(v[0]).includes(`${DEX_API}/`)) return v[0];
+      }
+    }
+    return null;
+  }
+  let lastFlash = '', reloadTimer = 0;
+  function watchCatch() {
+    const t = document.querySelector(CATCH_FLASH)?.textContent.trim() || '';
+    if (t === lastFlash) return;
+    lastFlash = t;
+    if (!t.startsWith(CATCH_OK) || !document.querySelector(WIN)) return;
+    clearTimeout(reloadTimer);
+    reloadTimer = setTimeout(() => { try { dexReload()?.(); } catch {} }, 800);  // dá tempo de o servidor registrar
+  }
 
   // A janela abre e fecha, e a grade some enquanto a ficha de um Pokémon está aberta: acompanha os dois.
   setInterval(() => {
+    watchCatch();
     const w = document.querySelector(WIN);
     if (w !== win) { win = w; filter = ''; }
     const g = win?.querySelector(GRID) || null;
