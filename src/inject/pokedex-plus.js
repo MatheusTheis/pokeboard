@@ -383,7 +383,16 @@
   const STAT_FILTERS = [[/^desbloquead/i, 'unlocked', 'Mostrar só os desbloqueados'], [/^bloquead/i, 'locked', 'Mostrar só os bloqueados (menos abates que o necessário)']];
   let sort = '';    // vale enquanto o painel estiver aberto
   let filter = '';  // '', 'locked' ou 'unlocked'; zera a cada abertura, como o filtro do jogo
-  let hideCaught = false;  // em "Bloqueados", esconde os capturados (vale enquanto o painel estiver aberto)
+  // Em "Bloqueados", esconde os capturados. Fica salvo (prefs.dexHideCaught no board.json): a Pokédex reabre como
+  // ficou da última vez, já em "Bloqueados" se estava ligado. Sair de "Bloqueados" desliga e salva também.
+  let hideCaught = false;
+  const savedHide = () => { try { return !!JSON.parse(document.documentElement.dataset.pbPrefs || '{}').dexHideCaught; } catch { return false; } };
+  function setHide(v) {
+    if (hideCaught === v) return;
+    hideCaught = v;
+    document.documentElement.dataset.pbPrefSave = JSON.stringify({ key: 'dexHideCaught', value: v });
+    window.dispatchEvent(new Event('pb:pref-save'));
+  }
   let win = null, gridEl = null, mo = null, pending = 0, lastSkin = null;
   const clones = new Map();  // "id:hunt" -> card copiado
 
@@ -566,6 +575,7 @@
   }
   function toggleFilter(f) {
     filter = filter === f ? '' : f;
+    if (filter !== 'locked') setHide(false);
     if (win) markStats(skinOn());
   }
 
@@ -650,14 +660,14 @@
     if (e.target.closest?.(`${WIN} .pb-dex-hidecaught`)) {  // ícone de "Bloqueados": liga junto o filtro
       e.preventDefault();
       e.stopPropagation();
-      hideCaught = !hideCaught;
+      setHide(!hideCaught);
       if (hideCaught) filter = 'locked';
       if (win) markStats(skinOn());
       return;
     }
     const st = e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
     if (st) { toggleFilter(st.getAttribute('data-pb-dexf')); return; }
-    if (e.target.closest?.(`${WIN} ${GAME_FILTER}`)) { filter = ''; if (win) markStats(skinOn()); return; }  // filtro do jogo: o nosso sai
+    if (e.target.closest?.(`${WIN} ${GAME_FILTER}`)) { filter = ''; setHide(false); if (win) markStats(skinOn()); return; }  // filtro do jogo: o nosso sai
     const clone = e.target.closest?.(`${WIN} [data-pb-clone]`);
     if (clone) { e.preventDefault(); e.stopPropagation(); originalOf(clone)?.click(); }  // a cópia abre a ficha da espécie
   }, true);
@@ -710,7 +720,7 @@
   setInterval(() => {
     watchCatch();
     const w = document.querySelector(WIN);
-    if (w !== win) { win = w; filter = ''; hideCaught = false; }
+    if (w !== win) { win = w; hideCaught = savedHide(); filter = hideCaught ? 'locked' : ''; }
     const g = win?.querySelector(GRID) || null;
     if (g !== gridEl) {
       mo?.disconnect();

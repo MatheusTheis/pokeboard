@@ -107,6 +107,8 @@ const PREFS = {
   hudMin: { def: false, clean: v => (typeof v === 'boolean' ? v : undefined) },
   // mapa (map-plus.js): filtros e centro da vista por região, para voltar igual ao reabrir
   map: { def: null, clean: cleanMapPref },
+  // Pokédex do jogo (pokedex-plus.js): esconder os capturados em "Bloqueados", lembrado ao reabrir
+  dexHideCaught: { def: false, clean: v => (typeof v === 'boolean' ? v : undefined) },
   // Economia (botão na barra vermelha, fps.js): quadros por segundo de cada conta; 0 = sem limite
   fps: { def: 0, clean: v => (FPS_STEPS.includes(v) ? v : undefined) },
 };
