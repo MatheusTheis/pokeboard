@@ -81,6 +81,57 @@
     kindBar.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === sellKind)));
   }
 
+  // ---------- Anunciar › "Vale vender": primeiro os itens que rendem mais no Mercado do que no Mark ----------
+  // Para cada item da grade: o anúncio mais barato em dollars do Mercado menos a taxa, contra o que o Mark paga
+  // (window.__pbPrices, mais abaixo). Ligado, os que rendem mais no Mercado vão para o começo, do maior ganho total
+  // (ganho por unidade × quantidade) para o menor, com o ganho no canto; os outros ficam apagados no fim.
+  // Só ordem (CSS order) e atributos nos cards do jogo; escolher e anunciar continua nos botões do jogo.
+  const SELL_PICK = ':scope > .mkt-pick:not(.mkt-pick-pk)';  // grade de itens do Anunciar (a de Pokémon é .mkt-pick-pk)
+  const num = s => Number(String(s || '').replace(/\D/g, '')) || 0;
+  const fmt = n => n.toLocaleString('pt-BR');
+  const compact = n => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(n)).replace('.', ',');
+  let worthOn = false;  // vale enquanto o painel estiver aberto
+  const worthBtn = document.createElement('button');
+  worthBtn.type = 'button';
+  worthBtn.id = 'pb-sell-worth';
+  worthBtn.title = 'Mostrar primeiro os itens que rendem mais vendendo no Mercado (já sem a taxa) do que para o Mark';
+  worthBtn.addEventListener('click', e => { e.stopPropagation(); worthOn = !worthOn; apply(); });
+  const setAttr = (el, k, v) => { if (v == null) { if (el.hasAttribute(k)) el.removeAttribute(k); } else if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
+  function mountWorth(form) {
+    const P = window.__pbPrices;
+    const pick = form.querySelector(SELL_PICK);
+    const fbar = pick?.previousElementSibling?.matches('.mk-fbar') ? pick.previousElementSibling : null;
+    if (!P || !fbar) { worthBtn.remove(); return; }
+    if (worthBtn.parentElement !== fbar) fbar.append(worthBtn);
+    const market = P.market(), fee = `${Math.round(P.FEE * 100)}%`;
+    const rows = [...pick.querySelectorAll('.mkt-tile')].map((t, i) => {
+      const name = t.querySelector('img')?.alt || '';
+      const m = market?.items[P.norm(name)], mark = P.npc(name), qty = num(t.querySelector('.mkt-tile-qty')?.textContent) || 1;
+      if (!m || mark === undefined) return { t, i, name, gain: null, why: !m ? 'sem anúncio em dollars no Mercado' : 'sem o preço do Mark' };
+      const v = P.net(m.p);
+      return { t, i, name, v, mark, qty, m, gain: (v - mark) * qty };
+    });
+    const good = rows.filter(r => r.gain > 0).sort((a, b) => b.gain - a.gain);
+    good.forEach((r, k) => { r.order = k; });
+    for (const r of rows) {
+      if (!worthOn) {
+        if (r.t.hasAttribute('data-pb-worth')) { r.t.style.removeProperty('order'); ['data-pb-worth', 'data-pb-gain', 'title'].forEach(k => r.t.removeAttribute(k)); }
+        continue;
+      }
+      const yes = r.gain > 0;
+      const order = String(yes ? r.order : 10000 + r.i);
+      if (r.t.style.order !== order) r.t.style.order = order;
+      setAttr(r.t, 'data-pb-worth', yes ? 'yes' : 'no');
+      setAttr(r.t, 'data-pb-gain', yes ? `+${compact(r.gain)}` : null);
+      setAttr(r.t, 'title', r.gain === null ? `${r.name}: ${r.why}.`
+        : `${r.name}: no Mercado rende 💲${fmt(r.v)}/un (anúncio mais barato 💲${fmt(r.m.p)}, menos ${fee}); o Mark paga 💲${fmt(r.mark)}.`
+          + (yes ? ` Com ${fmt(r.qty)} un: +💲${fmt(r.gain)} vendendo no Mercado.` : ' Vender para o Mark rende igual ou mais.'));
+    }
+    const label = worthOn ? `💲 Vale vender: ${good.length}` : '💲 Vale vender';
+    if (worthBtn.textContent !== label) worthBtn.textContent = label;  // só se mudou: o texto também é mudança no DOM observado
+    setAttr(worthBtn, 'aria-pressed', String(worthOn));
+  }
+
   const money = (n, cur) => `${Number(n || 0).toLocaleString('pt-BR')} ${cur === 'DIAMONDS' ? 'diamonds' : 'dollars'}`;
   function openSale(row, i) {
     const e = entryFor(row, i);
@@ -126,6 +177,8 @@
     if (win.dataset.pbCur !== filter) win.dataset.pbCur = filter;  // o CSS (game-skin.css) esconde por aqui
     win.toggleAttribute('data-pb-history', isHistory());           // linhas do Histórico viram clicáveis (CSS)
     mountSellForm();
+    const sellForm = win.querySelector(SELLFORM);
+    if (sellForm) mountWorth(sellForm);
     control.querySelectorAll('button[data-cur]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cur === filter)));
 
     // Marca cada anúncio com a moeda (só quando sabemos; os sem moeda nunca somem).
@@ -164,6 +217,68 @@
   window.addEventListener('pb:data', e => { if (e.detail?.path === API) schedule(); });
 })();
 
+// Preços para comparar Mercado × Mark: usados no Anunciar (acima) e na Loja do Mark (abaixo).
+// Mercado: quando abre, o jogo baixa todos os anúncios de uma vez (preço por unidade). Daqui sai o mais barato em
+// dollars de cada item e de cada espécie (Pokémon sem shiny, qualquer nível), fora os seus; fica guardado com a hora
+// no localStorage do painel, para valer também depois de fechar o Mercado.
+// Mark: o npcPrice do /game/items.json, o que ele paga por unidade de cada item.
+// Nada é buscado da API: vale o que o jogo carregou da última vez.
+(() => {
+  if (window.__pbPrices) return;
+  const MARKET_API = '/api/game/market';  // resposta guardada pelo hook.js: listings[] com preço por unidade
+  const ITEMS = '/game/items.json';       // arquivo público do jogo; normalmente o hook já guardou
+  const KEY = 'pb:market-min';            // localStorage do painel: o mais barato de cada item + a hora
+  const FEE = 0.03;                       // taxa do Mercado sobre vendas em dollars
+
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const species = name => norm(String(name || '').replace(/\s+lv\.?\s*\d+$/i, ''));  // "Larvitar Lv.1" -> "larvitar"
+
+  let market = (() => { try { const v = JSON.parse(localStorage.getItem(KEY) || 'null'); return v?.items ? v : null; } catch { return null; } })();
+  function learn(hit) {
+    const list = hit?.data?.listings;
+    if (!Array.isArray(list) || !list.length) return;  // resposta sem anúncios (outra aba): mantém a anterior
+    const mine = new Set((hit.data.mine || []).flatMap(l => l.ids || [l.id]));
+    const items = {}, pokes = {};
+    for (const l of list) {
+      if (l.currency !== 'GOLD' || l.offerOnly || !(l.price > 0) || !l.name) continue;
+      if ((l.ids || [l.id]).every(id => mine.has(id))) continue;
+      if (l.kind === 'pokemon') {
+        if (l.shiny) continue;
+        const k = species(l.name), cur = pokes[k];
+        if (!cur) pokes[k] = { p: l.price, n: 1 };
+        else { cur.n++; if (l.price < cur.p) cur.p = l.price; }
+        continue;
+      }
+      const k = norm(l.name), cur = items[k];
+      if (!cur || l.price < cur.p) items[k] = { p: l.price, q: l.quantity || 0, s: l.sellers || 1 };
+    }
+    // O jogo manda só parte dos anúncios de Pokémon (pkWindow.cap); a comparação deles vale para essa parte.
+    market = { at: hit.at || Date.now(), items, pokes, pkCap: hit.data.pkWindow?.more ? hit.data.pkWindow.cap || 0 : 0 };
+    try { localStorage.setItem(KEY, JSON.stringify(market)); } catch {}
+  }
+  learn(window.__pbCache?.[MARKET_API]);
+  window.addEventListener('pb:data', e => { if (e.detail?.path === MARKET_API) learn(window.__pbCache?.[MARKET_API]); });
+
+  let npc = null, npcFrom = null, loading = false;
+  const toMap = list => new Map(list.map(i => [norm(i.name), Number(i.npcPrice) || 0]));
+  function npcMap() {
+    const list = window.__pbCache?.[ITEMS]?.data?.items;
+    if (list && list !== npcFrom) { npc = toMap(list); npcFrom = list; }
+    if (!npc && !loading) {
+      loading = true;
+      fetch(ITEMS).then(r => (r.ok ? r.json() : null)).then(d => { if (d?.items && !npc) npc = toMap(d.items); }).catch(() => {});
+    }
+    return npc;
+  }
+
+  window.__pbPrices = {
+    FEE, norm, species,
+    market: () => market,
+    net: p => Math.floor(p * (1 - FEE)),          // o que o vendedor recebe no Mercado
+    npc: name => npcMap()?.get(norm(name)),        // o que o Mark paga; undefined = sem dado
+  };
+})();
+
 // Loja do Mark.
 // Comprar: botão "Máx" em cada item, igual ao que o jogo já tem no Vender. A pedido do jogador (clique no Máx), põe
 // na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro do limite do controle deslizante do jogo.
@@ -183,9 +298,6 @@
   const SELL_ROW = '.mks-srow';               // linhas de item do Vender
   const POKE_ROW = '.mks-row.mks-srow-head';  // linhas da aba Pokémon (no Vender, o cabeçalho fica dentro da linha)
   const STRIP = '.mks-strip';                 // faixa do dinheiro, no topo
-  const MARKET_API = '/api/game/market';      // resposta guardada pelo hook.js: listings[] com preço por unidade
-  const MARKET_KEY = 'pb:market-min';         // localStorage do painel: o mais barato de cada item + a hora
-  const MARKET_FEE = 0.03;                    // taxa do Mercado sobre vendas em dollars
   const CHECK_MS = 500;
 
   const digits = s => { const d = String(s || '').replace(/\D/g, ''); return d ? Number(d) : NaN; };
@@ -247,35 +359,11 @@
   });
 
   // ---------- preço do Mercado nas três abas ----------
-  // Quando o Mercado abre, o jogo baixa todos os anúncios de uma vez (preço por unidade). Daqui sai o mais barato em
-  // dollars de cada item e de cada espécie (Pokémon sem shiny, qualquer nível), fora os seus; fica guardado com a hora
-  // para valer também depois de fechar o Mercado. Nada é buscado por nós: vale o que o jogo carregou da última vez.
-  let market = (() => { try { const v = JSON.parse(localStorage.getItem(MARKET_KEY) || 'null'); return v?.items ? v : null; } catch { return null; } })();
-  const species = name => norm(String(name || '').replace(/\s+lv\.?\s*\d+$/i, ''));  // "Larvitar Lv.1" -> "larvitar"
-  function learn(hit) {
-    const list = hit?.data?.listings;
-    if (!Array.isArray(list) || !list.length) return;  // resposta sem anúncios (outra aba): mantém a anterior
-    const mine = new Set((hit.data.mine || []).flatMap(l => l.ids || [l.id]));
-    const items = {}, pokes = {};
-    for (const l of list) {
-      if (l.currency !== 'GOLD' || l.offerOnly || !(l.price > 0) || !l.name) continue;
-      if ((l.ids || [l.id]).every(id => mine.has(id))) continue;
-      if (l.kind === 'pokemon') {
-        if (l.shiny) continue;
-        const k = species(l.name), cur = pokes[k];
-        if (!cur) pokes[k] = { p: l.price, n: 1 };
-        else { cur.n++; if (l.price < cur.p) cur.p = l.price; }
-        continue;
-      }
-      const k = norm(l.name), cur = items[k];
-      if (!cur || l.price < cur.p) items[k] = { p: l.price, q: l.quantity || 0, s: l.sellers || 1 };
-    }
-    // O jogo manda só parte dos anúncios de Pokémon (pkWindow.cap); a comparação deles vale para essa parte.
-    market = { at: hit.at || Date.now(), items, pokes, pkCap: hit.data.pkWindow?.more ? hit.data.pkWindow.cap || 0 : 0 };
-    try { localStorage.setItem(MARKET_KEY, JSON.stringify(market)); } catch {}
-  }
-  learn(window.__pbCache?.[MARKET_API]);
-  window.addEventListener('pb:data', e => { if (e.detail?.path === MARKET_API) learn(window.__pbCache?.[MARKET_API]); });
+  // Preços de window.__pbPrices (acima): o anúncio mais barato em dollars de cada item e espécie, da última vez que o
+  // jogo carregou o Mercado neste painel.
+  const P = window.__pbPrices;
+  const species = P.species;
+  let market = null;  // P.market() a cada passada
 
   const ago = ms => {
     const m = Math.round(ms / 60000);
@@ -286,8 +374,8 @@
     if (el.title !== title) el.title = title;
     if (cmp !== undefined && el.dataset.cmp !== cmp) el.dataset.cmp = cmp;
   };
-  const net = p => Math.floor(p * (1 - MARKET_FEE));  // o que o vendedor recebe no Mercado
-  const fee = `${Math.round(MARKET_FEE * 100)}%`;
+  const net = P.net;
+  const fee = `${Math.round(P.FEE * 100)}%`;
   const sellers = n => `${n} ${n > 1 ? 'vendedores' : 'vendedor'}`;
   // data-cmp="good": o Mercado é o melhor negócio (compra mais barata ou venda que rende mais).
   const TEXT = {
@@ -322,6 +410,7 @@
     return out;
   }
   function mountCompare(win, on) {
+    market = P.market();
     const rows = on ? rowsOf(win) : [];
     let note = win.querySelector('.pb-mks-mkt-age');
     if (!rows.length) {
