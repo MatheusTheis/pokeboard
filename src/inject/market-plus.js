@@ -164,9 +164,11 @@
   window.addEventListener('pb:data', e => { if (e.detail?.path === API) schedule(); });
 })();
 
-// Loja do Mark › Comprar: botão "Máx" em cada item, igual ao que o jogo já tem no Vender.
-// A pedido do jogador (clique no Máx), põe na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro
-// do limite do controle deslizante do jogo. Só preenche o campo; a compra continua no botão Comprar do jogo.
+// Loja do Mark.
+// Comprar: botão "Máx" em cada item, igual ao que o jogo já tem no Vender. A pedido do jogador (clique no Máx), põe
+// na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro do limite do controle deslizante do jogo.
+// Só preenche o campo; a compra continua no botão Comprar do jogo.
+// Vender: ao lado do que o Mark paga, o anúncio mais barato em dollars do mesmo item no Mercado (abaixo).
 (() => {
   if (window.__pbMark) return;
   window.__pbMark = true;
@@ -176,12 +178,19 @@
   const BUY_ROW = '.mks-row:has(.mks-buy)';  // só as linhas do Comprar têm o botão Comprar
   const QTY_BAR = '.mks-qtybar';
   const MONEY = '.nsh-gold';                  // "💲 1.320.196"
-  const PRICE = '.mks-price';                 // "💲5"
+  const PRICE = '.mks-price';                 // "💲5" (no Vender, o que o Mark paga por unidade)
+  const SELL_ROW = '.mks-srow';               // linhas de item do Vender
+  const STRIP = '.mks-strip';                 // faixa do dinheiro, no topo
+  const MARKET_API = '/api/game/market';      // resposta guardada pelo hook.js: listings[] com preço por unidade
+  const MARKET_KEY = 'pb:market-min';         // localStorage do painel: o mais barato de cada item + a hora
   const CHECK_MS = 500;
 
   const digits = s => { const d = String(s || '').replace(/\D/g, ''); return d ? Number(d) : NaN; };
   const symbol = s => (String(s || '').match(/[^\d\s.,]+/) || [''])[0];  // 💲, 💎…
   const fmt = n => n.toLocaleString('pt-BR');
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  // Visual PokeBoard ligado? No "Original" o tokens.css sai, e os extras saem junto.
+  const skinOn = () => !!getComputedStyle(document.documentElement).getPropertyValue('--pb-screen').trim();
   function maxFor(row) {
     const moneyText = row.closest(WIN)?.querySelector(MONEY)?.textContent;
     const priceText = row.querySelector(PRICE)?.textContent;
@@ -234,5 +243,72 @@
     if (range && Number(range.value) !== n && Number(range.max) >= n) setValue(range, n);
   });
 
-  setInterval(() => { const win = document.querySelector(WIN); if (win) mount(win); }, CHECK_MS);
+  // ---------- Vender: preço do Mercado ----------
+  // Quando o Mercado abre, o jogo baixa todos os anúncios de uma vez (preço por unidade). Daqui sai o mais barato em
+  // dollars de cada item, fora os seus; fica guardado com a hora para valer também depois de fechar o Mercado.
+  // Nada é buscado por nós: vale o que o jogo carregou da última vez.
+  let market = (() => { try { const v = JSON.parse(localStorage.getItem(MARKET_KEY) || 'null'); return v?.items ? v : null; } catch { return null; } })();
+  function learn(hit) {
+    const list = hit?.data?.listings;
+    if (!Array.isArray(list) || !list.length) return;  // resposta sem anúncios (outra aba): mantém a anterior
+    const mine = new Set((hit.data.mine || []).flatMap(l => l.ids || [l.id]));
+    const items = {};
+    for (const l of list) {
+      if (l.currency !== 'GOLD' || l.offerOnly || l.kind === 'pokemon' || !(l.price > 0) || !l.name) continue;
+      if ((l.ids || [l.id]).every(id => mine.has(id))) continue;
+      const k = norm(l.name), cur = items[k];
+      if (!cur || l.price < cur.p) items[k] = { p: l.price, q: l.quantity || 0, s: l.sellers || 1 };
+    }
+    market = { at: hit.at || Date.now(), items };
+    try { localStorage.setItem(MARKET_KEY, JSON.stringify(market)); } catch {}
+  }
+  learn(window.__pbCache?.[MARKET_API]);
+  window.addEventListener('pb:data', e => { if (e.detail?.path === MARKET_API) learn(window.__pbCache?.[MARKET_API]); });
+
+  const ago = ms => {
+    const m = Math.round(ms / 60000);
+    return m < 1 ? 'agora' : m < 60 ? `há ${m} min` : m < 1440 ? `há ${Math.round(m / 60)} h` : `há ${Math.round(m / 1440)} d`;
+  };
+  const put = (el, text, title, cmp) => {
+    if (el.textContent !== text) el.textContent = text;
+    if (el.title !== title) el.title = title;
+    if (cmp !== undefined && el.dataset.cmp !== cmp) el.dataset.cmp = cmp;
+  };
+  function mountSell(win, on) {
+    const rows = win.querySelectorAll(SELL_ROW);
+    let note = win.querySelector('.pb-mks-mkt-age');
+    if (!on || !rows.length) {
+      note?.remove();
+      win.querySelectorAll('.pb-mks-mkt').forEach(el => el.remove());
+      return;
+    }
+    const strip = win.querySelector(STRIP);
+    if (!note && strip) { note = document.createElement('span'); note.className = 'pb-mks-mkt-age'; strip.prepend(note); }
+    if (note) put(note, market ? `Preços do Mercado: ${ago(Date.now() - market.at)}` : 'Abra o Mercado uma vez para comparar os preços',
+      'Anúncio mais barato em dollars de cada item, da última vez que o Mercado foi aberto neste painel.');
+    for (const row of rows) {
+      const info = row.querySelector('.mks-info');
+      const name = row.querySelector('.mks-name')?.textContent;
+      if (!info || !name) continue;
+      let el = info.querySelector('.pb-mks-mkt');
+      if (!el) { el = document.createElement('div'); el.className = 'pb-mks-mkt'; info.append(el); }
+      const mark = digits(row.querySelector(PRICE)?.textContent) || 0;
+      const stock = digits((row.querySelector('.mks-meta')?.textContent || '').split('×')[0]) || 0;
+      const m = market?.items[norm(name)];
+      if (!market) { put(el, 'Mercado: abra o Mercado', 'Sem preços do Mercado ainda neste painel.', 'none'); continue; }
+      if (!m) { put(el, 'Mercado: sem anúncio em dollars', `Nenhum anúncio de ${name} em dollars no Mercado (${ago(Date.now() - market.at)}).`, 'none'); continue; }
+      const cmp = m.p > mark ? 'up' : m.p < mark ? 'down' : 'same';
+      const total = stock ? ` Com ${fmt(stock)} un: Mercado até 💲${fmt(stock * m.p)}, Mark 💲${fmt(stock * mark)}.` : '';
+      put(el, `${{ up: '▲', down: '▼', same: '=' }[cmp]} Mercado 💲${fmt(m.p)}/un`,
+        `Anúncio mais barato em dollars: 💲${fmt(m.p)} por unidade (${fmt(m.q)} un, ${m.s} ${m.s > 1 ? 'vendedores' : 'vendedor'}). `
+        + `O Mark paga 💲${fmt(mark)}.${total} Sem descontar taxa do Mercado, se houver.`, cmp);
+    }
+  }
+
+  setInterval(() => {
+    const win = document.querySelector(WIN);
+    if (!win) return;
+    mount(win);
+    mountSell(win, skinOn());
+  }, CHECK_MS);
 })();

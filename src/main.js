@@ -38,7 +38,8 @@ const SKIN_CSS = new Set([
 ]);
 const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard) */
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
-#pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, #pb-dex-sort, #pb-dex-menu, #pb-toast { display: none !important; }`;
+#pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age,
+#pb-dex-sort, #pb-dex-menu, #pb-toast { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
