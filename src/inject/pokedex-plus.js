@@ -1,5 +1,6 @@
 // Pokédex+ — Pokédex com filtros, ordenação e os sprites do próprio jogo.
 // Só lê dados e imagens que o jogo já carregou. Não clica em nada nem envia ações.
+// No fim do arquivo, os extras dentro da Pokédex do próprio jogo (filtros, ordem por hunt, viajar para a hunt).
 (() => {
   if (window.__pbxLoaded) return;
   window.__pbxLoaded = true;
@@ -62,7 +63,7 @@
     if (!cells.length) return;
     const fresh = []; let pending = 0;
     cells.forEach(cell => {
-      if (root.contains(cell)) return;
+      if (root.contains(cell) || cell.hasAttribute('data-pb-clone')) return;  // cópias da ordem por hunt (abaixo)
       const id = parseInt((cell.querySelector('.dex-cell-no')?.textContent || '').replace(/\D/g, ''), 10);
       const cv = cell.querySelector('.dex-sprite canvas') || cell.querySelector('canvas');
       if (!id || !cv || !cv.width) return;
@@ -341,4 +342,333 @@
       </div>
     </article>`;
   }
+})();
+
+// Pokédex do jogo (.dex-window): extras do PokeBoard.
+// - "Bloqueados" e "Desbloqueados" na faixa de números filtram a grade, como "Capturados" já faz no jogo.
+// - Ordem por nível da hunt, ao lado do filtro de tipo. A espécie com mais de uma hunt (Blastoise Nv 80 em Kanto,
+//   Brave Blastoise Nv 150 em Outland) aparece uma vez por hunt; as cópias abrem a mesma ficha, porque abates e
+//   capturas de todas as formas contam juntos na espécie.
+// - Botão direito num card: escolher uma hunt da espécie e viajar até ela pelo mapa do jogo. A pedido do jogador,
+//   aperta os mesmos botões que ele apertaria (Mapa, a área e o "Viajar para" da hunt).
+// A grade continua sendo a do jogo: a ordem é só CSS (order) e as cópias são nossas, marcadas com data-pb-clone.
+(() => {
+  if (window.__pbDexGame) return;
+  window.__pbDexGame = true;
+
+  // Seletores do jogo. Ajuste aqui quando o jogo atualizar.
+  const WIN = '.dex-window';
+  const GRID = '.dex-grid';
+  const CELL = '.dex-cell';
+  const CONTROLS = '.dex-controls';
+  const TYPE_SELECT = '.dex-typef';
+  const STAT = '.dex-strip .stk-stat';
+  const GAME_FILTER = '.dex-strip .dex-stat-f';  // Capturados / Não Capturados (do jogo)
+  const MAP_BTN = '.dock-btn[data-guide="dock-map"]';
+  const MAP_WIN = '.map-window';
+  const LOCATION = '.game-root .phud-tloc';      // "Nível 290 · Sneasel"
+  const CREATURES = '/game/creatures.json';
+  const MARKERS = '/api/game/map-markers';       // hunts do mapa: nome, nível e área
+  const BASE_MAX_ID = 10000;                     // espécies da Pokédex; as formas (Brave, Mega…) têm id acima
+  const NO_HUNT = 1e8;                           // sem hunt conhecida: no fim da grade
+  const WAIT_MS = 5000;
+  const CHECK_MS = 500;
+
+  const SORTS = [['', 'Ordem: Nº'], ['hunt', 'Ordem: Nível da hunt'], ['hunt-desc', 'Ordem: Nível da hunt ↓']];
+  const STAT_FILTERS = [[/^desbloquead/i, 'unlocked', 'Mostrar só os desbloqueados'], [/^bloquead/i, 'locked', 'Mostrar só os bloqueados (menos abates que o necessário)']];
+  let sort = '';    // vale enquanto o painel estiver aberto
+  let filter = '';  // '', 'locked' ou 'unlocked'; zera a cada abertura, como o filtro do jogo
+  let win = null, gridEl = null, mo = null, pending = 0, lastSkin = null;
+  const clones = new Map();  // "id:hunt" -> card copiado
+
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : '');
+  const cached = p => window.__pbCache?.[p]?.data;
+  // Visual PokeBoard ligado? No "Original" o tokens.css sai, e os extras saem junto.
+  const skinOn = () => !!getComputedStyle(document.documentElement).getPropertyValue('--pb-screen').trim();
+  const dexNo = cell => parseInt((cell.querySelector('.dex-cell-no')?.textContent || '').replace(/\D/g, ''), 10) || 0;
+  async function waitFor(get, ms) {
+    for (const end = Date.now() + ms; ;) {
+      const v = get();
+      if (v || Date.now() > end) return v;
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
+  // ---------- hunts de cada espécie ----------
+  let creatures = null, loading = false, index = null, indexKey = '';
+  function creatureList() {
+    creatures = cached(CREATURES)?.creatures || creatures;
+    if (!creatures && !loading) {  // arquivo público do jogo; normalmente o hook já guardou
+      loading = true;
+      fetch(CREATURES).then(r => (r.ok ? r.json() : null)).then(d => { creatures = d?.creatures || null; index = null; schedule(); }).catch(() => {});
+    }
+    return creatures;
+  }
+  // Forma → espécie: mesmo nome ("Blastoise" 10001), nome sem o prefixo ("Brave Blastoise", "Milch-Miltank"),
+  // sem o sufixo ("Castform Fire") ou, por último, o mesmo sprite (looktype).
+  function huntIndex() {
+    const list = creatureList();
+    if (!list) return null;
+    const markers = cached(MARKERS)?.hunts;
+    const key = `${list.length}:${markers?.length || 0}`;
+    if (index && key === indexKey) return index;
+    const base = list.filter(c => c.pokeId < BASE_MAX_ID);
+    const baseByName = new Map(base.map(c => [norm(c.name), c]));
+    const baseByLook = new Map();
+    for (const c of base) baseByLook.set(c.looktype, baseByLook.has(c.looktype) ? null : c);  // só sprite único
+    const allByName = new Map(list.map(c => [norm(c.name), c]));
+    const baseOf = c => {
+      if (!c) return null;
+      if (c.pokeId < BASE_MAX_ID) return c;
+      const n = norm(c.name), w = n.split(/[\s-]+/);
+      if (baseByName.has(n)) return baseByName.get(n);
+      for (let i = 1; i < w.length; i++) { const b = baseByName.get(w.slice(i).join(' ')); if (b) return b; }
+      for (let i = w.length - 1; i > 0; i--) { const b = baseByName.get(w.slice(0, i).join(' ')); if (b) return b; }
+      return baseByLook.get(c.looktype) || null;
+    };
+    // As hunts do mapa (com a área); sem elas ainda, o nível de hunt de cada forma no creatures.json.
+    const hunts = markers
+      ? markers.map(h => ({ name: h.name, level: +h.level || 0, area: h.area || '', c: allByName.get(norm(h.name)) || baseByLook.get(h.looktype) }))
+      : list.map(c => ({ name: c.name, level: +c.huntLevel || 0, area: '', c }));
+    const out = new Map();
+    for (const h of hunts) {
+      const b = baseOf(h.c);
+      if (!b || !h.level) continue;  // cidades e o que não é Pokémon
+      if (!out.has(b.pokeId)) out.set(b.pokeId, []);
+      const hs = out.get(b.pokeId), k = `${norm(h.name)}@${h.level}`;
+      if (!hs.some(x => x.key === k)) hs.push({ name: h.name, level: h.level, area: h.area, key: k });
+    }
+    for (const hs of out.values()) hs.sort((a, b) => a.level - b.level || a.name.localeCompare(b.name));
+    index = out; indexKey = key;
+    return index;
+  }
+  const huntsOf = id => huntIndex()?.get(id) || [];
+  const huntLabel = h => `Nv ${h.level}${h.area ? ` · ${cap(h.area)}` : ''}`;
+
+  // ---------- ordem por nível da hunt ----------
+  const isOriginal = n => n.matches?.(CELL) && !n.hasAttribute('data-pb-clone');
+  const originalOf = cell => [...(gridEl?.children || [])].find(n => isOriginal(n) && dexNo(n) === dexNo(cell)) || null;
+  const orderOf = (h, id) => (sort === 'hunt-desc' ? 99999 - h.level : h.level) * BASE_MAX_ID + id;
+  function setOrder(cell, order, label) {
+    if (cell.style.order !== String(order)) cell.style.order = String(order);
+    if (cell.getAttribute('data-pb-hunt') !== label) cell.setAttribute('data-pb-hunt', label);
+  }
+  function clearOrder(cell) {
+    if (cell.style.order) cell.style.removeProperty('order');
+    if (cell.hasAttribute('data-pb-hunt')) cell.removeAttribute('data-pb-hunt');
+  }
+  // O sprite é um canvas desenhado pelo jogo: a cópia recebe o desenho (cloneNode não copia os pixels).
+  function copySprite(c) {
+    const a = c._src?.querySelector('canvas'), b = c.querySelector('canvas');
+    if (!a || !b || !a.width) return;
+    if (b.width !== a.width) b.width = a.width;
+    if (b.height !== a.height) b.height = a.height;
+    try { const g = b.getContext('2d'); g.clearRect(0, 0, b.width, b.height); g.drawImage(a, 0, 0); } catch {}
+  }
+  function makeClone(cell, h) {
+    const c = cell.cloneNode(true);
+    c.setAttribute('data-pb-clone', '');
+    c.removeAttribute('id');
+    const name = c.querySelector('.dex-cell-name');
+    if (name) name.textContent = h.name;
+    c.title = `${h.name} (${huntLabel(h)}): abre a ficha de ${cell.title || 'mesma espécie'}`;
+    c._from = cell.className;
+    return c;
+  }
+  function apply() {
+    pending = 0;
+    const grid = gridEl;
+    if (!grid || !grid.isConnected) return;
+    const on = !!sort && skinOn();
+    const want = new Set();
+    let fresh = false;
+    for (const cell of [...grid.children].filter(isOriginal)) {
+      if (!on) { clearOrder(cell); continue; }
+      const id = dexNo(cell), hs = huntsOf(id);
+      if (!hs.length) { setOrder(cell, NO_HUNT + id, 'sem hunt'); continue; }
+      setOrder(cell, orderOf(hs[0], id), huntLabel(hs[0]));
+      for (const h of hs.slice(1)) {
+        const key = `${id}:${h.key}`;
+        want.add(key);
+        let c = clones.get(key);
+        if (c && c._from !== cell.className) { c.remove(); c = null; }  // capturou, desbloqueou…: copia de novo
+        if (!c) { c = makeClone(cell, h); clones.set(key, c); fresh = true; }
+        c._src = cell;
+        setOrder(c, orderOf(h, id), huntLabel(h));
+        if (c.parentNode !== grid) grid.append(c);
+        copySprite(c);
+      }
+    }
+    for (const [key, c] of clones) if (!want.has(key)) { c.remove(); clones.delete(key); }
+    // O jogo desenha os sprites depois de montar os cards: copia de novo quando já estiverem prontos.
+    if (fresh) [700, 2000].forEach(ms => setTimeout(() => clones.forEach(copySprite), ms));
+  }
+  const schedule = () => { if (!pending) pending = setTimeout(apply, 120); };
+
+  const select = document.createElement('select');
+  select.id = 'pb-dex-sort';
+  select.setAttribute('aria-label', 'Ordem da Pokédex');
+  select.title = 'Ordem dos cards. Por nível da hunt, a espécie com mais de uma hunt aparece uma vez por hunt.';
+  select.innerHTML = SORTS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  select.addEventListener('change', () => { sort = select.value; apply(); });
+
+  function mountControls(on) {
+    const ctr = win.querySelector(CONTROLS);
+    if (!ctr || !on) { select.remove(); return; }
+    if (select.parentNode !== ctr) { const t = ctr.querySelector(TYPE_SELECT); t ? t.after(select) : ctr.append(select); }
+    if (select.value !== sort) select.value = sort;
+  }
+
+  // ---------- Bloqueados / Desbloqueados ----------
+  function markStats(on) {
+    for (const st of win.querySelectorAll(STAT)) {
+      if (st.matches(GAME_FILTER)) continue;
+      const f = STAT_FILTERS.find(([re]) => re.test(st.querySelector('.stk-lbl')?.textContent.trim() || ''));
+      if (!f) continue;
+      if (!on) { ['data-pb-dexf', 'role', 'tabindex', 'aria-pressed', 'title'].forEach(a => st.removeAttribute(a)); continue; }
+      if (st.getAttribute('data-pb-dexf') !== f[1]) {
+        st.setAttribute('data-pb-dexf', f[1]);
+        st.setAttribute('role', 'button');
+        st.setAttribute('tabindex', '0');
+        st.title = f[2];
+      }
+      const pressed = String(filter === f[1]);
+      if (st.getAttribute('aria-pressed') !== pressed) st.setAttribute('aria-pressed', pressed);
+    }
+    const v = on ? filter : '';
+    if ((win.getAttribute('data-pb-dexf') || '') !== v) v ? win.setAttribute('data-pb-dexf', v) : win.removeAttribute('data-pb-dexf');
+  }
+  function toggleFilter(f) {
+    filter = filter === f ? '' : f;
+    if (win) markStats(skinOn());
+  }
+
+  // ---------- botão direito: viajar para a hunt ----------
+  const menu = document.createElement('div');
+  menu.id = 'pb-dex-menu';
+  menu.setAttribute('role', 'menu');
+  let menuHunts = [];
+  const closeMenu = () => menu.remove();
+  function openMenu(cell, x, y) {
+    const id = dexNo(cell), base = originalOf(cell) || cell;
+    const name = base.title || base.querySelector('.dex-cell-name')?.textContent.trim() || `#${id}`;
+    const here = norm((document.querySelector(LOCATION)?.textContent || '').split('·').pop());
+    menuHunts = huntsOf(id);
+    menu.innerHTML = `<div class="pb-dex-menu-h">Viajar para a hunt<small>${esc(name)}</small></div>` + (menuHunts.length
+      ? menuHunts.map((h, i) => {
+        const isHere = norm(h.name) === here;
+        return `<button type="button" role="menuitem" data-i="${i}"${isHere ? ' disabled' : ''}><b>${esc(h.name)}</b><span>${esc(huntLabel(h))}${isHere ? ' · você está aqui' : ''}</span></button>`;
+      }).join('')
+      : `<p>Nenhuma hunt de ${esc(name)} no mapa.</p>`);
+    document.body.append(menu);
+    const r = menu.getBoundingClientRect();
+    menu.style.left = `${Math.max(4, Math.min(x, innerWidth - r.width - 4))}px`;
+    menu.style.top = `${Math.max(4, Math.min(y, innerHeight - r.height - 4))}px`;
+    menu.querySelector('button:not(:disabled)')?.focus();
+  }
+  menu.addEventListener('click', e => {
+    const b = e.target.closest('button[data-i]');
+    if (!b) return;
+    const h = menuHunts[+b.dataset.i];
+    closeMenu();
+    if (h) travel(h);
+  });
+  menu.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const items = [...menu.querySelectorAll('button:not(:disabled)')];
+    const i = items.indexOf(document.activeElement);
+    items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+  });
+
+  const toastEl = document.createElement('div');
+  toastEl.id = 'pb-toast';
+  toastEl.setAttribute('role', 'status');
+  let toastTimer = 0;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    document.body.append(toastEl);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.remove(), 5000);
+  }
+
+  // Abre o mapa (se fechado), troca para a área da hunt e aperta o "Viajar para" dela.
+  let traveling = false;
+  async function travel(h) {
+    if (traveling) return;
+    traveling = true;
+    try {
+      const marker = () => [...document.querySelectorAll(`${MAP_WIN} .hunt-marker`)].find(m =>
+        norm(m.querySelector('.hunt-name')?.textContent) === norm(h.name) || norm((m.title || '').replace(/^viajar para\s*/i, '')) === norm(h.name));
+      if (!document.querySelector(MAP_WIN)) {
+        const btn = document.querySelector(MAP_BTN);
+        if (!btn) return toast('Não achei o botão do Mapa na barra de telas.');
+        btn.click();
+        if (!await waitFor(() => document.querySelector(MAP_WIN), WAIT_MS)) return toast('O mapa não abriu.');
+      }
+      if (!marker() && h.area) {
+        const plate = [...document.querySelectorAll(`${MAP_WIN} .map-plate`)].find(p => norm(p.querySelector('img')?.alt) === norm(h.area));
+        if (plate?.classList.contains('locked')) return toast(`${cap(h.area)} ainda está bloqueada (${plate.title}).`);
+        if (plate && !plate.classList.contains('on')) plate.click();
+      }
+      const m = await waitFor(marker, WAIT_MS);
+      if (!m) return toast(`Não achei ${h.name} no mapa; ele ficou aberto para você procurar.`);
+      m.click();
+    } finally {
+      traveling = false;
+    }
+  }
+
+  // ---------- eventos ----------
+  document.addEventListener('click', e => {
+    const st = e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
+    if (st) { toggleFilter(st.getAttribute('data-pb-dexf')); return; }
+    if (e.target.closest?.(`${WIN} ${GAME_FILTER}`)) { filter = ''; if (win) markStats(skinOn()); return; }  // filtro do jogo: o nosso sai
+    const clone = e.target.closest?.(`${WIN} [data-pb-clone]`);
+    if (clone) { e.preventDefault(); e.stopPropagation(); originalOf(clone)?.click(); }  // a cópia abre a ficha da espécie
+  }, true);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && menu.isConnected) { closeMenu(); e.stopPropagation(); return; }
+    const st = (e.key === 'Enter' || e.key === ' ') && e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
+    if (st) { e.preventDefault(); toggleFilter(st.getAttribute('data-pb-dexf')); }
+  }, true);
+  document.addEventListener('contextmenu', e => {
+    const cell = e.target.closest?.(`${WIN} ${CELL}`);
+    if (!cell || !skinOn()) return;
+    e.preventDefault();
+    openMenu(cell, e.clientX, e.clientY);
+  });
+  document.addEventListener('pointerdown', e => { if (menu.isConnected && !menu.contains(e.target)) closeMenu(); }, true);
+  window.addEventListener('pb:data', e => {
+    const p = e.detail?.path;
+    if (p === CREATURES || p === MARKERS) { index = null; if (gridEl) schedule(); }
+  });
+
+  // A janela abre e fecha, e a grade some enquanto a ficha de um Pokémon está aberta: acompanha os dois.
+  setInterval(() => {
+    const w = document.querySelector(WIN);
+    if (w !== win) { win = w; filter = ''; }
+    const g = win?.querySelector(GRID) || null;
+    if (g !== gridEl) {
+      mo?.disconnect();
+      clones.forEach(c => c.remove());
+      clones.clear();
+      gridEl = g;
+      if (g) {
+        // Só mudanças do jogo na grade (busca, filtro, troca de lista); as cópias nossas não contam.
+        mo = new MutationObserver(recs => {
+          if (recs.some(r => [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1 && !n.hasAttribute('data-pb-clone')))) schedule();
+        });
+        mo.observe(g, { childList: true });
+        schedule();
+      }
+    }
+    if (!win) { closeMenu(); return; }
+    const on = skinOn();
+    if (on !== lastSkin) { lastSkin = on; schedule(); if (!on) closeMenu(); }
+    mountControls(on);
+    markStats(on);
+  }, CHECK_MS);
 })();

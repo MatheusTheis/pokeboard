@@ -540,7 +540,8 @@ html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
 
 /* ---------- Pokédex: busca e filtro de tipo ---------- */
 .game-root .dex-window .dex-search,
-.game-root .dex-window .dex-typef {
+.game-root .dex-window .dex-typef,
+.game-root .dex-window #pb-dex-sort {
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--pb-screen) !important;
@@ -550,8 +551,36 @@ html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
 }
 .game-root .dex-window .dex-search::placeholder { color: var(--pb-ink-muted) !important; }
 .game-root .dex-window .dex-search:focus,
-.game-root .dex-window .dex-typef:focus { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
-.game-root .dex-window .dex-typef option { background: var(--pb-surface) !important; color: var(--pb-ink) !important; }
+.game-root .dex-window .dex-typef:focus,
+.game-root .dex-window #pb-dex-sort:focus { outline: none; box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .dex-window :is(.dex-typef, #pb-dex-sort) option { background: var(--pb-surface) !important; color: var(--pb-ink) !important; }
+/* Ordem por nível da hunt (pokedex-plus.js), ao lado do filtro de tipo: a busca encolhe para caber. */
+.game-root .dex-window .dex-search { min-width: 0 !important; }
+.game-root .dex-window #pb-dex-sort { flex: none; padding: 0 8px; cursor: pointer; }
+
+/* ---------- Pokédex: extras do PokeBoard (pokedex-plus.js) ----------
+   "Bloqueados" e "Desbloqueados" filtram como os contadores do jogo; na ordem por hunt, o nível (e a área) da hunt
+   aparece embaixo do nome, e as outras formas da espécie (data-pb-clone) ganham o nome em amarelo. */
+.game-root .dex-window .dex-strip .stk-stat[data-pb-dexf] { cursor: pointer; }
+.game-root .dex-window .dex-strip .stk-stat[data-pb-dexf]:hover { background: var(--pb-surface-raised) !important; }
+.game-root .dex-window .dex-strip .stk-stat[data-pb-dexf]:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+.game-root .dex-window .dex-strip .stk-stat[aria-pressed="true"] {
+  background: var(--pb-surface-raised) !important;
+  box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dex-window .dex-strip .stk-stat[aria-pressed="true"] .stk-lbl { color: var(--pb-ink) !important; }
+.game-root .dex-window[data-pb-dexf="locked"] .dex-cell:not(.locked),
+.game-root .dex-window[data-pb-dexf="unlocked"] .dex-cell.locked { display: none !important; }
+.game-root .dex-window .dex-cell[data-pb-hunt]::after {
+  content: attr(data-pb-hunt);
+  display: block;
+  margin-top: 2px;
+  color: var(--pb-pika-yellow);
+  font: 600 11px/13px var(--pb-font-body);
+  text-align: center;
+}
+.game-root .dex-window .dex-cell[data-pb-clone] .dex-cell-name { color: var(--pb-pika-yellow) !important; }
+.game-root .dex-window .dex-cell[data-pb-hunt] .dex-shiny-mark { top: 24px !important; bottom: auto !important; }  /* sai de cima do rótulo */
 
 /* ---------- Pokédex: grade e cards ---------- */
 .game-root .dex-window .dex-grid { background: var(--pb-screen) !important; box-shadow: var(--pb-shadow-bevel) !important; gap: 12px 10px !important; }

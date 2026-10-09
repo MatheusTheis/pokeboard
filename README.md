@@ -36,6 +36,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | **Log de capturas** | ✨ Shiny, ordenar por IV ou por qualidade, com o IV sempre inteiro na tabela. |
 | **Ficha do Pokémon** | Card com tipos, raridade, hunt, evolução, situação na sua Pokédex e estatísticas base. |
 | **HUD minimalista** | ▴/▾ no cartão do jogador recolhe o time e deixa só o Pokémon ativo. |
+| **Pokédex do jogo** | "Bloqueados" e "Desbloqueados" filtram a grade. Ordem por nível da hunt, com nível e área em cada card; a espécie com mais de uma hunt (Blastoise Nv 80 em Kanto, Brave Blastoise Nv 150 em Outland) aparece uma vez por hunt, e todas abrem a mesma ficha (abates e capturas contam juntos). Botão direito num card: escolher uma hunt da espécie e viajar até ela. |
 | **Pokédex+** | Pokédex com filtros e ordenação (`Alt+P`), usando os sprites que o próprio jogo desenha. |
 | **Tema próprio** | `theme/theme.css` é aplicado por cima de tudo e recarrega ao salvar. |
 
@@ -82,7 +83,7 @@ Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está abe
 
 ### Visual PokeBoard ou original
 
-O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, Máx da Loja do Mark, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
+O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o design dele: desliga o visual PokeBoard e os controles nossos dentro do jogo (✎, Mercado · Mark, ▴/▾, filtros do mapa e do mercado, Máx da Loja do Mark, extras da Pokédex, ficha). Clique de novo para voltar. A troca é na hora, sem recarregar o jogo, e fica salva. O board (contas, zoom, login), a ordem da barra de telas, o seu `theme.css` e a Pokédex+ continuam.
 
 ### Quantas contas
 
@@ -105,6 +106,7 @@ O jogo proíbe macros e automação sem autorização; a staff autorizou melhori
 - **não automatiza o jogo:** não clica, não digita e não repete ações pelo jogador. Exceções, sempre a partir de um clique seu e sem nunca comprar, vender ou capturar:
   - o atalho **Mercado · Mark** aperta os botões do próprio jogo na ordem (voltar à cidade, ir ao Shopping, abrir o NPC) quando você escolhe uma das opções;
   - **Derrotados**, no Hunt Analyzer, aperta o botão Pokédex e o card da espécie (só telas de consulta);
+  - **Viajar para a hunt**, no botão direito de um card da Pokédex, aperta Mapa, a área e o "Viajar para" da hunt escolhida;
   - **Máx**, na Loja do Mark, preenche o campo de quantidade; quem compra é o botão Comprar do jogo;
 - **só lê:** os scripts injetados leem o DOM e as respostas que o jogo já buscou; não chamam rotas de ação;
 - **não redistribui arte:** sprites e imagens do jogo são lidos em tempo de execução e guardados só no cache local; nada disso entra neste repositório;
@@ -132,7 +134,7 @@ src/inject/map-plus.js      filtros e posição salvos no mapa
 src/inject/dock-editor.js   ✎ para reordenar a barra de telas
 src/inject/hud-plus.js      HUD minimalista
 src/inject/capture-log-plus.js  ✨ Shiny / IV↓ / Rar↓ no log de capturas
-src/inject/pokedex-plus.js  Pokédex+
+src/inject/pokedex-plus.js  Pokédex+ e extras da Pokédex do jogo (filtros, ordem por hunt, viajar)
 src/recorder.js             gravador de estudo do jogo (PB_RECORD=1)
 theme/theme.css             o seu tema, aplicado por último
 docs/design-system.md       o design system PokeBoard Retro
