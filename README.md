@@ -36,7 +36,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | **Log de capturas** | ✨ Shiny, ordenar por IV ou por qualidade, com o IV sempre inteiro na tabela. |
 | **Ficha do Pokémon** | Card com tipos, raridade, hunt, evolução, situação na sua Pokédex e estatísticas base. |
 | **HUD minimalista** | ▴/▾ no cartão do jogador recolhe o time e deixa só o Pokémon ativo. |
-| **Pokédex do jogo** | "Bloqueados" e "Desbloqueados" filtram a grade. Ordem por nível da hunt, com nível e área em cada card; a espécie com mais de uma hunt (Blastoise Nv 80 em Kanto, Brave Blastoise Nv 150 em Outland) aparece uma vez por hunt, e todas abrem a mesma ficha (abates e capturas contam juntos). Botão direito num card: escolher uma hunt da espécie e viajar até ela. Capturou com a Pokédex aberta: ela se atualiza sem fechar. |
+| **Pokédex do jogo** | "Bloqueados" e "Desbloqueados" filtram a grade; o ✓ no canto de "Bloqueados" esconde os já capturados. Ordem por nível da hunt, com nível e área em cada card; a espécie com mais de uma hunt (Blastoise Nv 80 em Kanto, Brave Blastoise Nv 150 em Outland) aparece uma vez por hunt, e todas abrem a mesma ficha (abates e capturas contam juntos). Botão direito num card: escolher uma hunt da espécie e viajar até ela. Capturou com a Pokédex aberta: ela se atualiza sem fechar. |
 | **Pokédex+** | Pokédex com filtros e ordenação (`Alt+P`), usando os sprites que o próprio jogo desenha. |
 | **Tema próprio** | `theme/theme.css` é aplicado por cima de tudo e recarrega ao salvar. |
 

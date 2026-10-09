@@ -345,7 +345,8 @@
 })();
 
 // Pokédex do jogo (.dex-window): extras do PokeBoard.
-// - "Bloqueados" e "Desbloqueados" na faixa de números filtram a grade, como "Capturados" já faz no jogo.
+// - "Bloqueados" e "Desbloqueados" na faixa de números filtram a grade, como "Capturados" já faz no jogo. Um ícone
+//   no canto de "Bloqueados" esconde os já capturados: ficam só os que faltam capturar.
 // - Ordem por nível da hunt, ao lado do filtro de tipo. A espécie com mais de uma hunt (Blastoise Nv 80 em Kanto,
 //   Brave Blastoise Nv 150 em Outland) aparece uma vez por hunt; as cópias abrem a mesma ficha, porque abates e
 //   capturas de todas as formas contam juntos na espécie.
@@ -382,6 +383,7 @@
   const STAT_FILTERS = [[/^desbloquead/i, 'unlocked', 'Mostrar só os desbloqueados'], [/^bloquead/i, 'locked', 'Mostrar só os bloqueados (menos abates que o necessário)']];
   let sort = '';    // vale enquanto o painel estiver aberto
   let filter = '';  // '', 'locked' ou 'unlocked'; zera a cada abertura, como o filtro do jogo
+  let hideCaught = false;  // em "Bloqueados", esconde os capturados (vale enquanto o painel estiver aberto)
   let win = null, gridEl = null, mo = null, pending = 0, lastSkin = null;
   const clones = new Map();  // "id:hunt" -> card copiado
 
@@ -531,7 +533,11 @@
       if (st.matches(GAME_FILTER)) continue;
       const f = STAT_FILTERS.find(([re]) => re.test(st.querySelector('.stk-lbl')?.textContent.trim() || ''));
       if (!f) continue;
-      if (!on) { ['data-pb-dexf', 'role', 'tabindex', 'aria-pressed', 'title'].forEach(a => st.removeAttribute(a)); continue; }
+      if (!on) {
+        ['data-pb-dexf', 'role', 'tabindex', 'aria-pressed', 'title'].forEach(a => st.removeAttribute(a));
+        st.querySelector('.pb-dex-hidecaught')?.remove();
+        continue;
+      }
       if (st.getAttribute('data-pb-dexf') !== f[1]) {
         st.setAttribute('data-pb-dexf', f[1]);
         st.setAttribute('role', 'button');
@@ -540,9 +546,23 @@
       }
       const pressed = String(filter === f[1]);
       if (st.getAttribute('aria-pressed') !== pressed) st.setAttribute('aria-pressed', pressed);
+      if (f[1] === 'locked') {
+        let b = st.querySelector('.pb-dex-hidecaught');
+        if (!b) {
+          b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'pb-dex-hidecaught';
+          b.textContent = '✓';
+          b.title = 'Esconder os capturados: em "Bloqueados", ficam só os que faltam capturar';
+          b.setAttribute('aria-label', 'Esconder os capturados nos bloqueados');
+          st.append(b);
+        }
+        if (b.getAttribute('aria-pressed') !== String(hideCaught)) b.setAttribute('aria-pressed', String(hideCaught));
+      }
     }
     const v = on ? filter : '';
     if ((win.getAttribute('data-pb-dexf') || '') !== v) v ? win.setAttribute('data-pb-dexf', v) : win.removeAttribute('data-pb-dexf');
+    win.toggleAttribute('data-pb-hidecaught', on && hideCaught && filter === 'locked');
   }
   function toggleFilter(f) {
     filter = filter === f ? '' : f;
@@ -627,6 +647,14 @@
 
   // ---------- eventos ----------
   document.addEventListener('click', e => {
+    if (e.target.closest?.(`${WIN} .pb-dex-hidecaught`)) {  // ícone de "Bloqueados": liga junto o filtro
+      e.preventDefault();
+      e.stopPropagation();
+      hideCaught = !hideCaught;
+      if (hideCaught) filter = 'locked';
+      if (win) markStats(skinOn());
+      return;
+    }
     const st = e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
     if (st) { toggleFilter(st.getAttribute('data-pb-dexf')); return; }
     if (e.target.closest?.(`${WIN} ${GAME_FILTER}`)) { filter = ''; if (win) markStats(skinOn()); return; }  // filtro do jogo: o nosso sai
@@ -635,7 +663,7 @@
   }, true);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && menu.isConnected) { closeMenu(); e.stopPropagation(); return; }
-    const st = (e.key === 'Enter' || e.key === ' ') && e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
+    const st = (e.key === 'Enter' || e.key === ' ') && !e.target.closest?.('.pb-dex-hidecaught') && e.target.closest?.(`${WIN} .stk-stat[data-pb-dexf]`);
     if (st) { e.preventDefault(); toggleFilter(st.getAttribute('data-pb-dexf')); }
   }, true);
   document.addEventListener('contextmenu', e => {
@@ -682,7 +710,7 @@
   setInterval(() => {
     watchCatch();
     const w = document.querySelector(WIN);
-    if (w !== win) { win = w; filter = ''; }
+    if (w !== win) { win = w; filter = ''; hideCaught = false; }
     const g = win?.querySelector(GRID) || null;
     if (g !== gridEl) {
       mo?.disconnect();

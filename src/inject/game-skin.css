@@ -571,6 +571,37 @@ html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
 .game-root .dex-window .dex-strip .stk-stat[aria-pressed="true"] .stk-lbl { color: var(--pb-ink) !important; }
 .game-root .dex-window[data-pb-dexf="locked"] .dex-cell:not(.locked),
 .game-root .dex-window[data-pb-dexf="unlocked"] .dex-cell.locked { display: none !important; }
+/* Ícone no canto de "Bloqueados": esconde os já capturados (✓ cortado; aceso quando ligado). */
+.game-root .dex-window[data-pb-hidecaught] .dex-cell.caught { display: none !important; }
+.game-root .dex-window .dex-strip .stk-stat[data-pb-dexf] { position: relative; }
+.game-root .dex-window .pb-dex-hidecaught {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-screen);
+  color: var(--pb-ink-muted);
+  box-shadow: var(--pb-frame-border);
+  font: 700 13px/22px var(--pb-font-body);
+  cursor: pointer;
+}
+.game-root .dex-window .pb-dex-hidecaught::after {
+  content: "";
+  position: absolute;
+  top: calc(50% - 1px);
+  left: 3px;
+  right: 3px;
+  height: 2px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}
+.game-root .dex-window .pb-dex-hidecaught:hover { color: var(--pb-ink); }
+.game-root .dex-window .pb-dex-hidecaught[aria-pressed="true"] { background: var(--pb-success); color: var(--pb-on-success); box-shadow: var(--pb-frame-ink); }
+.game-root .dex-window .pb-dex-hidecaught:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 2px; }
 .game-root .dex-window .dex-cell[data-pb-hunt]::after {
   content: attr(data-pb-hunt);
   display: block;
