@@ -92,7 +92,7 @@
   const SELL_PICK = ':scope > .mkt-pick:not(.mkt-pick-pk)';  // grade de itens do Anunciar (a de Pokémon é .mkt-pick-pk)
   const num = s => Number(String(s || '').replace(/\D/g, '')) || 0;
   const fmt = n => n.toLocaleString('pt-BR');
-  const compact = n => (n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(n)).replace('.', ',');
+  const compact = n => (n >= 1e9 ? `${+(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(n));  // 1.2k, 120k, 2.5M
   let worthOn = false;  // vale enquanto o painel estiver aberto
   const worthBtn = document.createElement('button');
   worthBtn.type = 'button';
@@ -164,6 +164,39 @@
     if (tile) setTimeout(() => fillSale(tile), 60);
   });
 
+  // ---------- Anunciar › Pokémon: valor de mercado em cada card ----------
+  // Ao lado do nível, o anúncio mais barato em dollars de um Pokémon parecido (mesma espécie e raridade, IV ±10;
+  // window.__pbPrices), abreviado (45k, 1.2M); "–" quando não há parecido à venda. Shiny fica sem valor.
+  // A lista dos seus Pokémon chega pelo WebSocket do jogo e fica no estado do componente do Mercado: lemos dali
+  // (React), e cada card é achado pela chave dele, que é o id do Pokémon. Só leitura; nada é clicado.
+  const fiberOf = el => { const k = Object.keys(el).find(x => x.startsWith('__reactFiber$')); return k ? el[k] : null; };
+  function myPokes(el) {
+    for (let f = fiberOf(el), d = 0; f && d < 80; f = f.return, d++) {
+      if (typeof f.type !== 'function') continue;
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const v = h.memoizedState;
+        if (Array.isArray(v) && v[0] && typeof v[0] === 'object' && 'speciesId' in v[0] && 'ivTotal' in v[0]) return v;
+      }
+    }
+    return null;
+  }
+  function mountPokeValues(form) {
+    const P = window.__pbPrices, pick = form.querySelector(':scope > .mkt-pick-pk');
+    if (!P || !pick) return;
+    const list = myPokes(pick);
+    const byId = new Map((list || []).map(p => [String(p.id), p]));
+    for (const t of pick.querySelectorAll('.mkt-ptile')) {
+      const p = byId.get(String(fiberOf(t)?.key));
+      let val = null;
+      if (p && !p.shiny && p.name) {
+        const m = P.similar(p.name, p.ivTotal ?? 0, P.grade(p.quality ?? 1));
+        val = m ? compact(m.p) : m === null ? '–' : null;  // undefined: preços guardados antes do IV (abrir o Mercado resolve)
+      }
+      setAttr(t, 'data-pb-val', val);
+      setAttr(t, 'data-pb-val-none', val === '–' ? '' : null);
+    }
+  }
+
   const money = (n, cur) => `${Number(n || 0).toLocaleString('pt-BR')} ${cur === 'DIAMONDS' ? 'diamonds' : 'dollars'}`;
   function openSale(row, i) {
     const e = entryFor(row, i);
@@ -210,7 +243,7 @@
     win.toggleAttribute('data-pb-history', isHistory());           // linhas do Histórico viram clicáveis (CSS)
     mountSellForm();
     const sellForm = win.querySelector(SELLFORM);
-    if (sellForm) mountWorth(sellForm);
+    if (sellForm) { mountWorth(sellForm); mountPokeValues(sellForm); }
     control.querySelectorAll('button[data-cur]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.cur === filter)));
 
     // Marca cada anúncio com a moeda (só quando sabemos; os sem moeda nunca somem).

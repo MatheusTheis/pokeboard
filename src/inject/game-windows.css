@@ -277,6 +277,18 @@
 #pb-sell-worth:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
 .game-root .mkt2-window .mkt-tile[data-pb-worth] { position: relative; }
 .game-root .mkt2-window .mkt-tile[data-pb-worth="no"] { opacity: .35; }
+/* Anunciar › Pokémon: valor de mercado do parecido (market-plus.js) no canto oposto ao nível. */
+.game-root .mkt2-window .mkt-ptile[data-pb-val]::after {
+  content: attr(data-pb-val);
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  color: var(--pb-pika-yellow);
+  text-shadow: 0 1px 2px #000;
+  font: 700 9px/12px var(--pb-font-body);
+  pointer-events: none;
+}
+.game-root .mkt2-window .mkt-ptile[data-pb-val-none]::after { color: var(--pb-ink-muted); }
 .game-root .mkt2-window .mkt-tile[data-pb-gain]::after {
   content: attr(data-pb-gain);
   position: absolute;
