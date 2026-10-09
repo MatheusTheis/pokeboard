@@ -735,7 +735,8 @@
 .game-root .mks-window .mks-qtymax:active:not(:disabled) { transform: translate(2px, 2px) !important; box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink) !important; }
 .game-root .mks-window .mks-qtymax:disabled { opacity: .45 !important; cursor: default !important; }
 .game-root .mks-window .mks-lock { filter: none !important; }
-/* Vender: anúncio mais barato do Mercado (market-plus.js). ▲ o Mercado paga mais que o Mark; ▼ o Mark paga mais. */
+/* Anúncio mais barato do Mercado em cada item (market-plus.js): verde quando o Mercado é o melhor negócio
+   (no Comprar, mais barato que o Mark; no Vender e no Pokémon, rende mais que o Mark mesmo sem a taxa). */
 .game-root .mks-window .pb-mks-mkt {
   margin-top: 2px;
   overflow: hidden;
@@ -744,7 +745,7 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
-.game-root .mks-window .pb-mks-mkt[data-cmp="up"] { color: var(--pb-success); }
+.game-root .mks-window .pb-mks-mkt[data-cmp="good"] { color: var(--pb-success); }
 .game-root .mks-window .pb-mks-mkt-age { margin-right: auto; color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
 /* Aba Pokémon: barra de filtros (busca, IV, raridades). As raridades mantêm a cor do jogo; a desligada fica apagada. */
 .game-root .mks-window .mks-fbar {
