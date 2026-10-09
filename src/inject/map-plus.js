@@ -1,4 +1,4 @@
-// Mapa+: filtros próprios (busca, nível, tipos) e a posição do mapa, salvos ao fechar e reabrir.
+// Mapa+: filtros próprios (busca, nível, tipos) e a posição do mapa, salvos por conta ao fechar e reabrir.
 // O jogo zera os filtros e a posição sempre que o mapa fecha. Para não digitar nem clicar nos controles dele,
 // os filtros do jogo ficam escondidos e os nossos mostram/escondem os marcadores; a posição volta rolando a
 // área do mapa (o mesmo que arrastar). Nenhum marcador é clicado: viajar continua sendo clique seu.
@@ -25,16 +25,36 @@
     ['DARK', 'Sombrio'], ['STEEL', 'Aço'], ['FAIRY', 'Fada']];
   const root = document.documentElement;
 
-  // Estado salvo no board.json (preferência "map"), lido do <html> que o preload preenche.
-  const saved = () => { try { return JSON.parse(root.dataset.pbPrefs || '{}').map || null; } catch { return null; } };
+  // Estado de cada conta, no localStorage do próprio painel (sobrevive a recarregar e a fechar o app): busca,
+  // níveis, tipos e o centro da vista em cada região. Antes era uma preferência só para todas as contas
+  // (prefs.map no board.json); na primeira vez, cada conta parte dela.
+  const KEY = 'pb:map';
+  const shared = () => { try { return JSON.parse(root.dataset.pbPrefs || '{}').map || null; } catch { return null; } };
+  const lvl = v => (Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+  // O que vem do armazenamento passa por aqui antes de virar estado.
+  function clean(v) {
+    if (!v || typeof v !== 'object') return null;
+    const views = {};
+    for (const [a, c] of Object.entries(v.views || {}).slice(0, 10)) {
+      if (/^[\w-]{1,30}$/.test(a) && c && Number.isFinite(c.cx) && Number.isFinite(c.cy)) views[a] = { cx: c.cx, cy: c.cy };
+    }
+    return {
+      q: typeof v.q === 'string' ? v.q.slice(0, 40) : '',
+      min: lvl(v.min),
+      max: lvl(v.max),
+      types: Array.isArray(v.types) ? v.types.filter(t => TYPES.some(([k]) => k === t)) : [],
+      views,
+    };
+  }
+  const saved = () => {
+    try { const own = localStorage.getItem(KEY); if (own) return clean(JSON.parse(own)); } catch {}
+    return clean(shared());
+  };
   const st = { q: '', min: null, max: null, types: [], views: {} };
   let saveTimer = 0;
   function save() {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      root.dataset.pbPrefSave = JSON.stringify({ key: 'map', value: st });
-      window.dispatchEvent(new Event('pb:pref-save'));
-    }, 400);
+    saveTimer = setTimeout(() => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch {} }, 400);
   }
 
   // ---------- nossa barra de filtros ----------
