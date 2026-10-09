@@ -27,7 +27,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 |---|---|
 | **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
 | **Zoom por painel** | Cada painel calcula o zoom para o jogo caber; ajuste fino com `−` `+` ou `Ctrl` + roda do mouse, salvo por conta. |
-| **Visual PokeBoard Retro** | Barra de telas no topo inteiro, cartão do jogador, barras segmentadas, chat e todas as janelas do jogo (Mercado, Pokédex, Breeding, Equipe, Streak, Missões, Perfil, lojas) com carcaça vermelha e moldura de pixel. |
+| **Visual PokeBoard Retro** | Barra de telas no topo inteiro, cartão do jogador, barras segmentadas, chat e as janelas do jogo (Mercado, Pokédex, Breeding, Equipe, Streak, Missões, Perfil, Configurações, lojas de NPC, Daily Kill, Profissões, Rankings, Todos os Shinys, Slot Machine, Inventário, menu da conta) com carcaça vermelha e moldura de pixel. |
 | **Barra de telas organizável** | Botão ✎ para reordenar os ícones (vale para todas as contas). No modo dividido, ícones grandes com rolagem pela roda do mouse. |
 | **Mercado** | Filtro de moeda (Dollars / Diamonds), Anunciar itens e Pokémon numa tela só, e card com os detalhes ao clicar numa venda do Histórico. |
 | **Loja do Mark** | Visual Retro nas abas Comprar, Vender e Pokémon, com o dinheiro num visor. No Comprar, **Máx** põe na quantidade o máximo que o dinheiro paga; a compra continua no botão Comprar do jogo. |

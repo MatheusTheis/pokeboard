@@ -94,7 +94,7 @@
 .game-root :is(.win-window, .ah-modal) input:is([type="checkbox"], [type="radio"], [type="range"]) { accent-color: var(--pb-pika-yellow) !important; }
 
 /* Abas (Mercado, lojas, Depósito, Missões e subabas genéricas): a ativa ganha moldura amarela. */
-.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt) {
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt, .rk-tab) {
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--pb-surface) !important;
@@ -105,8 +105,8 @@
   transform: none !important;
   font-family: var(--pb-font-body) !important;
 }
-.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt):hover { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; }
-.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt):is(.on, [aria-selected="true"]) {
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt, .rk-tab):hover { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; }
+.game-root .win-window :is(.mkt2-tab, .nsh-tab, .ds-subtab, .ds-subtabs > button, .qt-city, .brd-path-opt, .rk-tab):is(.on, [aria-selected="true"]) {
   color: var(--pb-ink) !important;
   background: var(--pb-surface-raised) !important;
   box-shadow: var(--pb-frame-focus) !important;
@@ -114,7 +114,7 @@
 .game-root .win-window :is(.mkt2-tab-label, .mkt2-tab-count) { font-family: var(--pb-font-body) !important; text-shadow: none !important; letter-spacing: 0 !important; }
 
 /* Botões das janelas: secundário cinza; principal vermelho; resgatar/recompensa amarelo. */
-.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim) {
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim, .dk-btn, .dk-reroll, .clan-buy, .npc-dlg-btn, .prof-talents-btn, .prof-ask-no, .gs-btn) {
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--pb-surface-raised) !important;
@@ -125,15 +125,15 @@
   font-family: var(--pb-font-body) !important;
   letter-spacing: 0 !important;
 }
-.game-root .win-window :is(.mkt2-btn--primary, .btn-primary, .brd-breed-btn, .nsh-btn:not(.nsh-btn-alt)) { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
+.game-root .win-window :is(.mkt2-btn--primary, .btn-primary, .brd-breed-btn, .nsh-btn:not(.nsh-btn-alt), .dk-btn, .clan-buy, .npc-dlg-btn, .gs-btn-roll) { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
 /* Recompensa (resgatar, investir pontos): amarelo. .nsh-btn.gft-claim empata com o vermelho das lojas e vence por vir depois. */
-.game-root .win-window :is(.qt-claim, .btn-gold, .stk-invest, .nsh-btn.gft-claim) { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .win-window :is(.qt-claim, .btn-gold, .stk-invest, .nsh-btn.gft-claim, .gs-btn-roll.free) { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
 /* Desabilitado (sem pontos, sem dinheiro…): apagado, sem efeito de clique. */
-.game-root .win-window :where(.mkt2-btn, .nsh-btn, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .gft-claim):disabled { opacity: .45 !important; filter: grayscale(.6) !important; cursor: default; }
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .gft-claim, .dk-btn, .dk-reroll, .clan-buy, .npc-dlg-btn, .prof-talents-btn, .gs-btn):disabled { opacity: .45 !important; filter: grayscale(.6) !important; cursor: default; }
 .game-root .win-window .mkt2-btn--danger { color: var(--pb-dex-red-ink) !important; }
 .game-root .win-window .mkt2-btn--ghost { background: transparent !important; box-shadow: var(--pb-frame-border) !important; }
-.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim):hover:not(:disabled) { filter: brightness(1.12) !important; }
-.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-sp-back, .gft-claim):active:not(:disabled) {
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-viewbtn, .mkt2-side-btn, .mkt2-sp-back, .gft-claim, .dk-btn, .dk-reroll, .clan-buy, .npc-dlg-btn, .prof-talents-btn, .prof-ask-no, .gs-btn):hover:not(:disabled) { filter: brightness(1.12) !important; }
+.game-root .win-window :where(.mkt2-btn, .nsh-btn, .nsh-btn-alt, .brd-buyslot, .team-actions button, .btn-primary, .btn-gold, .stk-invest, .qt-claim, .brd-breed-btn, .mkt2-pgbtn, .mkt2-sp-back, .gft-claim, .dk-btn, .dk-reroll, .clan-buy, .npc-dlg-btn, .prof-talents-btn, .prof-ask-no, .gs-btn):active:not(:disabled) {
   transform: translate(2px, 2px) !important;
   box-shadow: var(--pb-frame-ink), 1px 1px 0 0 var(--pb-shadow-ink) !important;
 }
@@ -162,18 +162,35 @@
 }
 
 /* Barras de progresso: trilho escuro com moldura, preenchimento em segmentos amarelos (verde quando completa). */
-.game-root .win-window :is(.stk-prog, .qt-bar, .qt-goal-bar, .brd-meter-track, .dex-stat-bar) {
+.game-root .win-window :is(.stk-prog, .qt-bar, .qt-goal-bar, .brd-meter-track, .dex-stat-bar, .dk-bar, .prof-bar) {
   border: 0 !important;
   border-radius: 0 !important;
   background: var(--pb-bar-track) !important;
   box-shadow: 0 0 0 2px var(--pb-border) !important;
 }
-.game-root .win-window :is(.stk-prog-fill, .qt-bar > *, .qt-goal-bar > *, .brd-meter-track > *, .dex-stat-bar > *) {
+.game-root .win-window :is(.stk-prog-fill, .qt-bar > *, .qt-goal-bar > *, .brd-meter-track > *, .dex-stat-bar > *, .dk-bar > *, .prof-bar > *) {
   border-radius: 0 !important;
   box-shadow: none !important;
   background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important;
 }
 .game-root .win-window :is(.stk-prog-spark, .stk-prog-ticks) { display: none !important; }
+/* Fim das barras: o brilho que corre por cima some. */
+.game-root .win-window :is(.dk-bar, .prof-bar) > *::before,
+.game-root .win-window :is(.dk-bar, .prof-bar) > *::after { display: none !important; }
+
+/* Faixa de números (Streak, Pokédex, Daily Kill, Missões): caixas quadradas, número em pixel.
+   :where() deixa as regras de cada janela (mais abaixo e em game-skin.css) mandarem. */
+.game-root :where(.win-window) .stk-stat {
+  clip-path: none !important;
+  filter: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root :where(.win-window) .stk-stat::before { display: none !important; }
+.game-root :where(.win-window) .stk-stat b { color: var(--pb-ink) !important; -webkit-text-fill-color: currentColor !important; background: none !important; text-shadow: none !important; font: 400 14px/22px var(--pb-font-pixel) !important; }
+.game-root :where(.win-window) .stk-stat .stk-lbl { color: var(--pb-ink-muted) !important; text-shadow: none !important; font: 500 12px/16px var(--pb-font-body) !important; letter-spacing: 0 !important; text-transform: none !important; }
 
 /* ---------- Mercado Global (todas as abas) ---------- */
 .game-root .mkt2-window :is(.mkt2-tabs, .mkt2-foot, .mkt2-toolbar, .mkt2-side) {
@@ -751,6 +768,359 @@
   color: var(--pb-dex-red-ink) !important;
   box-shadow: 0 0 0 2px var(--pb-dex-red) !important;
 }
+
+/* ---------- Daily Kill (.dk-window) ----------
+   Faixa de números (comum, acima), recompensa, troca dos 3 e os cartões das missões com faixa na cor do tipo. */
+.game-root .dk-window .dk-xp-v { color: var(--pb-pika-yellow) !important; }
+.game-root .dk-window .dk-clock { color: var(--pb-poke-blue) !important; }
+.game-root .dk-window :is(.dk-reward, .dk-reroll-bar) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .dk-window .dk-reward-item { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .dk-window :is(.dk-reward-lbl, .dk-hint, .dk-reward-name, .dk-reroll-txt em, .dk-reroll-have, .dk-foot-note, .dk-skip) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
+.game-root .dk-window .dk-reroll-have.low { color: var(--pb-dex-red-ink) !important; }
+.game-root .dk-window :is(.dk-reward-qty, .dk-reroll-txt b, .dk-locked-txt) { color: var(--pb-ink) !important; font-family: var(--pb-font-body) !important; }
+.game-root .dk-window :is(.dk-reward-xp, .dk-card-xp) { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .dk-window .dk-reroll-ico { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .dk-window .dk-reroll-ico svg { filter: none !important; }
+.game-root .dk-window .dk-reroll-cost { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; color: var(--pb-pika-yellow) !important; }
+.game-root .dk-window .dk-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(to top, var(--type, var(--pb-border)) 0 4px, var(--pb-surface) 4px) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  animation: none !important;
+}
+.game-root .dk-window .dk-card:hover { box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important; filter: brightness(1.08); }
+.game-root .dk-window .dk-card.on { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .dk-window .dk-elem { opacity: .08 !important; filter: grayscale(1) !important; }
+.game-root .dk-window .dk-sprite-wrap {
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: 0 -2px 0 0 var(--type, var(--pb-border)), 0 2px 0 0 var(--type, var(--pb-border)), -2px 0 0 0 var(--type, var(--pb-border)), 2px 0 0 0 var(--type, var(--pb-border)), var(--pb-shadow-bevel) !important;
+}
+.game-root .dk-window .dk-sprite-wrap::after { display: none !important; }
+.game-root .dk-window .dk-card-no { color: var(--pb-ink-muted) !important; font: 400 8px/12px var(--pb-font-pixel) !important; }
+.game-root .dk-window .dk-card-name { color: var(--pb-ink) !important; font: 600 15px/18px var(--pb-font-body) !important; }
+.game-root .dk-window .dk-goal-have { color: var(--pb-ink) !important; font: 400 16px/22px var(--pb-font-pixel) !important; }
+.game-root .dk-window :is(.dk-goal-sep, .dk-goal-qty) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .dk-window .dk-done { color: var(--pb-success) !important; font-family: var(--pb-font-body) !important; }
+
+/* ---------- Profissões (.prof-window) ----------
+   Lista à esquerda com a cor da profissão (--prof-c) numa faixa; ficha à direita em cartões quadrados. */
+.game-root .prof-window .prof-banner { border: 0 !important; border-radius: 0 !important; box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .prof-window .prof-banner::after { border-radius: 0 !important; }
+.game-root .prof-window :is(.prof-list, .prof-detail, .prof-ranks) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .prof-window :is(.prof-litem, .prof-hero) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: inset 4px 0 0 0 var(--prof-c, var(--pb-border)), var(--pb-frame-border), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  filter: none !important;
+}
+.game-root .prof-window .prof-litem:hover:not(:disabled) { background: var(--pb-surface-raised) !important; }
+.game-root .prof-window .prof-litem.on { background: var(--pb-surface-raised) !important; box-shadow: inset 4px 0 0 0 var(--prof-c, var(--pb-border)), var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .prof-window .prof-lname { color: var(--pb-ink) !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window .prof-lbadge { border-radius: 0 !important; background: var(--prof-c, var(--pb-border)) !important; color: var(--pb-shadow-ink) !important; box-shadow: var(--pb-frame-ink) !important; font: 400 8px/12px var(--pb-font-pixel) !important; }
+.game-root .prof-window .prof-lsoon { border: 0 !important; border-radius: 0 !important; box-shadow: var(--pb-frame-border) !important; color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window .prof-portrait {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: 0 0 0 2px var(--prof-c, var(--pb-border)), var(--pb-shadow-bevel) !important;
+}
+.game-root .prof-window .prof-hname { color: var(--prof-c, var(--pb-ink)) !important; text-shadow: none !important; font: 400 12px/18px var(--pb-font-pixel) !important; }
+.game-root .prof-window .prof-you { color: var(--pb-pika-yellow) !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window :is(.prof-desc, .prof-stat-l, .prof-req-name, .prof-switch-note, .prof-mechbox, .prof-type-chip i) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window .prof-rank {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .prof-window .prof-rank.got { background: color-mix(in srgb, var(--prof-c, var(--pb-border)) 22%, var(--pb-surface)) !important; box-shadow: 0 0 0 2px var(--prof-c, var(--pb-border)) !important; }
+.game-root .prof-window .prof-rk { color: var(--pb-ink-muted) !important; text-shadow: none !important; font: 400 12px/18px var(--pb-font-pixel) !important; }
+.game-root .prof-window .prof-rank.got .prof-rk { color: var(--pb-ink) !important; }
+.game-root .prof-window .prof-rn { font-family: var(--pb-font-body) !important; }
+.game-root .prof-window :is(.prof-stat, .prof-req) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .prof-window .prof-req.done { box-shadow: 0 0 0 2px var(--pb-success) !important; }
+.game-root .prof-window :is(.prof-stat b, .prof-req-n, .prof-type-chip b) { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window :is(.prof-req.done .prof-req-n, .prof-type-chip.done b) { color: var(--pb-success) !important; }
+.game-root .prof-window .prof-req.done .prof-bar > * { background: repeating-linear-gradient(90deg, var(--pb-success) 0 6px, transparent 6px 8px) !important; }
+.game-root .prof-window .prof-mechbox {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: inset 4px 0 0 0 var(--pb-pika-yellow), var(--pb-frame-border) !important;
+}
+.game-root .prof-window :is(.prof-mechbox-catch, .prof-mechbox-berry) { box-shadow: inset 4px 0 0 0 var(--pb-success), var(--pb-frame-border) !important; }
+.game-root .prof-window .prof-mechbox b { color: var(--pb-pika-yellow) !important; }
+.game-root .prof-window :is(.prof-mechbox-catch, .prof-mechbox-berry) b,
+.game-root .prof-window .prof-catch-now { color: var(--pb-success) !important; }
+.game-root .prof-window .prof-task {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .prof-window .prof-task-h { background: none !important; border-bottom: 2px solid var(--pb-surface-raised) !important; color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; }
+.game-root .prof-window .prof-type-chip { border: 0 !important; border-radius: 0 !important; background: var(--pb-surface) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .prof-window .prof-type-chip.done { box-shadow: 0 0 0 2px var(--pb-success) !important; }
+.game-root .prof-window :is(.prof-current, .prof-event-banner) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-pika-yellow) !important;
+  text-shadow: none !important;
+  box-shadow: var(--pb-frame-border) !important;
+  animation: none !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .prof-window :is(.prof-max, .prof-flash) { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .prof-window :is(.prof-inline-ico, .prof-lico img, .prof-portrait img) { filter: none !important; }
+/* Confirmação de troca de profissão. */
+.game-root .prof-ask-ov { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.game-root .prof-ask {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .prof-ask-head { border: 0 !important; background: var(--pb-dex-red) !important; box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important; color: var(--pb-on-red) !important; font: 400 12px/18px var(--pb-font-pixel) !important; }
+.game-root .prof-ask-cost { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .prof-ask-cost b { color: var(--pb-pika-yellow) !important; }
+.game-root :is(.prof-ask-body, .prof-ask-bal, .prof-ask-keep) { font-family: var(--pb-font-body) !important; }
+
+/* ---------- Rankings (.rk-window) ----------
+   Abas na regra comum; pódio em cartões quadrados com moldura na cor do lugar; lista e destaques em tela escura. */
+.game-root .rk-window .rk-tabs { background: none !important; border-bottom: 2px solid var(--pb-shadow-ink) !important; }
+.game-root .rk-window .rk-list::before,
+.game-root .rk-window .rk-pod::before,
+.game-root .rk-window .rk-pod-motes { display: none !important; }
+.game-root .rk-window .rk-pod {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: 0 0 0 3px var(--pb-pod, var(--pb-border)), 6px 6px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .rk-window .rk-pod.gold { --pb-pod: var(--pb-pika-yellow); background: var(--pb-surface-raised) !important; }
+.game-root .rk-window .rk-pod.silver { --pb-pod: #CDD6E0; }
+.game-root .rk-window .rk-pod.bronze { --pb-pod: #E0A060; }
+.game-root .rk-window .rk-pod-ava { border-radius: 0 !important; border-width: 2px !important; background: var(--pb-screen) !important; box-shadow: var(--pb-shadow-bevel) !important; }
+.game-root .rk-window .rk-pod-place { text-shadow: none !important; font: 400 9px/14px var(--pb-font-pixel) !important; }
+.game-root .rk-window .rk-pod.first .rk-pod-trophy { filter: none !important; }
+.game-root .rk-window :is(.rk-pod-name, .rk-pod-val, .rk-pod-owner, .rk-name, .rk-owner, .rk-val, .rk-stat-label, .rk-stat-val) { text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .rk-window :is(.rk-pod-val, .rk-val) { color: var(--pb-pika-yellow) !important; }
+.game-root .rk-window :is(.rk-pod-val, .rk-val).zero { color: var(--pb-ink-muted) !important; }
+.game-root .rk-window .rk-rows { border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .rk-window .rk-row { border-radius: 0 !important; }
+.game-root .rk-window .rk-row:nth-child(2n) { background: var(--pb-surface) !important; }
+.game-root .rk-window .rk-row:hover { background: var(--pb-surface-raised) !important; box-shadow: none !important; }
+.game-root .rk-window .rk-row.me { background: var(--pb-surface-raised) !important; box-shadow: inset 4px 0 0 0 var(--pb-pika-yellow) !important; }
+.game-root .rk-window .rk-pos { color: var(--pb-ink-muted) !important; text-shadow: none !important; font: 400 10px/16px var(--pb-font-pixel) !important; }
+.game-root .rk-window .rk-row:nth-child(-n+7) .rk-pos { color: var(--pb-pika-yellow) !important; }
+.game-root .rk-window .rk-name { color: var(--pb-ink) !important; }
+.game-root .rk-window :is(.rk-name, .rk-pod-name, .rk-owner).vip { color: #7FD4FF !important; }
+.game-root .rk-window :is(.rk-name, .rk-pod-name, .rk-owner).admin { color: var(--pb-dex-red-ink) !important; }
+.game-root .rk-window .rk-you { border-radius: 0 !important; background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .rk-window .rk-stats { background: none !important; border-left: 2px solid var(--pb-shadow-ink) !important; }
+.game-root .rk-window .rk-stats-title { background: none !important; -webkit-text-fill-color: currentColor !important; color: var(--pb-ink) !important; filter: none !important; font: 400 9px/14px var(--pb-font-pixel) !important; text-transform: uppercase !important; }
+.game-root .rk-window .rk-stat {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .rk-window .rk-stat-ico { border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .rk-window .rk-stat-label { color: var(--pb-ink-muted) !important; }
+.game-root .rk-window .rk-stat-val { color: var(--pb-ink) !important; }
+.game-root .rk-window :is(.rk-title-ico, .rk-tab-ico, .rk-pod-crest, .rk-pod-laurel) { filter: none !important; }
+
+/* ---------- Todos os Shinys (.ap-window) ----------
+   Um bloco por raridade com a cor dela (--tier) na faixa da esquerda; cartões quadrados. */
+.game-root .ap-window .ap-total { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; color: var(--pb-pika-yellow) !important; box-shadow: var(--pb-frame-ink) !important; font: 400 9px/14px var(--pb-font-pixel) !important; }
+.game-root .ap-window .ap-tier {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: inset 4px 0 0 0 var(--tier, var(--pb-border)), var(--pb-frame-border) !important;
+}
+.game-root .ap-window .ap-tier-head { background: none !important; border-bottom: 2px solid var(--pb-surface-raised) !important; }
+.game-root .ap-window .ap-tier-badge { border: 0 !important; border-radius: 0 !important; background: var(--tier, var(--pb-border)) !important; color: var(--pb-shadow-ink) !important; box-shadow: var(--pb-frame-ink) !important; font: 400 9px/14px var(--pb-font-pixel) !important; }
+.game-root .ap-window .ap-tier-name { color: var(--tier, var(--pb-ink)) !important; text-shadow: none !important; font: 400 10px/16px var(--pb-font-pixel) !important; text-transform: uppercase !important; }
+.game-root .ap-window :is(.ap-tier-count, .ap-dex, .ap-msg) { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .ap-window .ap-card {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  filter: none !important;
+}
+.game-root .ap-window .ap-card:hover { background: var(--pb-surface-raised) !important; }
+.game-root .ap-window .ap-name { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font: 600 13px/16px var(--pb-font-body) !important; }
+.game-root .ap-window .ap-count-num { color: var(--pb-ink) !important; text-shadow: none !important; font: 400 10px/14px var(--pb-font-pixel) !important; }
+
+/* ---------- Poke Slot Machine (.gs-window) ----------
+   O gabinete do fliperama (arte do jogo) fica; slots, timer e botões ganham o visual Retro. */
+.game-root .gs-window .gs-slot {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .gs-window .gs-slot.sel { box-shadow: var(--pb-frame-focus) !important; }
+.game-root .gs-window .gs-portrait { border: 0 !important; border-radius: 0 !important; box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important; }
+.game-root .gs-window .gs-portrait-glow { filter: none !important; }
+.game-root .gs-window :is(.gs-slot-title, .gs-portrait-name) { color: var(--pb-pika-yellow) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .gs-window :is(.gs-btn-main, .gs-btn-sub, .gs-timer span, .gs-free-in, .gs-slot-hint, .gs-banner-lbl, .gs-banner-val, .gs-rar-chip, .gs-vip-tag, .gs-temp-tag) { font-family: var(--pb-font-body) !important; text-shadow: none !important; }
+.game-root .gs-window :is(.gs-rar-chip, .gs-vip-tag, .gs-temp-tag, .gs-cand) { border-radius: 0 !important; }
+.game-root .gs-window .gs-timer { border: 0 !important; border-radius: 0 !important; background: var(--pb-bar-track) !important; box-shadow: 0 0 0 2px var(--pb-border) !important; }
+.game-root .gs-window .gs-btn-roll .gs-btn-sub { color: inherit !important; }
+.game-root .gs-window .gs-toast { border: 0 !important; border-radius: 0 !important; background: var(--pb-surface) !important; color: var(--pb-ink) !important; box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important; font-family: var(--pb-font-body) !important; }
+
+/* ---------- Diálogo de NPC (.npc-dialog: "Conversar" com o Mark e outros) ---------- */
+.game-root .npc-dialog { padding-top: 0 !important; }
+.game-root .npc-dialog .npc-dlg-head {
+  position: relative;
+  padding-left: 46px !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+}
+.game-root .npc-dialog .npc-dlg-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+}
+.game-root .npc-dialog .npc-dlg-name { color: var(--pb-on-red) !important; text-shadow: none !important; font: 400 14px/22px var(--pb-font-pixel) !important; text-transform: uppercase; }
+.game-root .npc-dialog .npc-dlg-head .cfg-x { border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--pb-on-red) !important; -webkit-text-fill-color: var(--pb-on-red) !important; text-shadow: none !important; }
+.game-root .npc-dialog :is(.npc-dlg-desc, .npc-dlg-soon) { color: var(--pb-ink-muted) !important; font: 500 14px/20px var(--pb-font-body) !important; font-style: normal !important; }
+
+/* ---------- Inventário (.inv-window.inv-bag: moldura própria, fora do .win-window) ----------
+   A mochila desenhada do jogo (imagens de fundo) sai: carcaça vermelha em cima, grade numa tela escura.
+   As margens da mochila existiam para a arte; sem ela, ficam as do resto das janelas. */
+.game-root .inv-window {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .inv-window.inv-bag { padding-bottom: 14px !important; }
+.game-root .inv-window::after { display: none !important; }
+.game-root .inv-window .inv-title {
+  position: relative;
+  height: auto !important;
+  margin: 0 !important;
+  padding: 10px 40px 14px 46px !important;
+  border: 0 !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep) !important;
+}
+.game-root .inv-window .inv-title::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+}
+.game-root .inv-window .inv-title > span:first-child {
+  background: none !important;
+  -webkit-text-fill-color: var(--pb-on-red) !important;
+  color: var(--pb-on-red) !important;
+  text-shadow: none !important;
+  width: auto !important;  /* a mochila fixava 107px, o pixel não cabe */
+  font: 400 14px/22px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+  text-transform: uppercase !important;
+}
+.game-root .inv-window .inv-title .inv-count { -webkit-text-fill-color: currentColor !important; color: var(--pb-on-red) !important; opacity: .85; font-family: var(--pb-font-body) !important; }
+.game-root .inv-window .inv-title .cfg-x { top: calc(50% - 2px) !important; left: auto !important; right: 12px !important; transform: translateY(-50%) !important; border: 0 !important; background: transparent !important; box-shadow: none !important; color: var(--pb-on-red) !important; -webkit-text-fill-color: var(--pb-on-red) !important; text-shadow: none !important; }
+.game-root .inv-window .inv-tabs { margin: 12px 14px 0 !important; gap: 8px !important; background: none !important; border: 0 !important; }
+.game-root .inv-window .dep-tab {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  color: var(--pb-ink-muted) !important;
+  text-shadow: none !important;
+  box-shadow: var(--pb-frame-border) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .inv-window .dep-tab:hover { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; }
+.game-root .inv-window .dep-tab.on { color: var(--pb-ink) !important; background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .inv-window .dep-tab.on .inv-tab-ico { filter: none !important; }
+.game-root .inv-window .inv-status { margin: 8px 14px 0 !important; color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
+.game-root .inv-window .inv-grid {
+  margin: 8px 14px 0 !important;
+  padding: 8px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .inv-window .inv-slot {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: inset 0 0 0 2px var(--pb-shadow-ink), var(--pb-shadow-bevel) !important;
+}
+.game-root .inv-window .inv-slot:not(.empty):hover { box-shadow: inset 0 0 0 2px var(--pb-focus) !important; }
+.game-root .inv-window .inv-slot.inv-poke { box-shadow: inset 0 0 0 2px var(--pb-poke-blue), var(--pb-shadow-bevel) !important; }
+.game-root .inv-window .inv-slot.inv-team { box-shadow: inset 0 0 0 2px var(--pb-pika-yellow), var(--pb-shadow-bevel) !important; }
+.game-root .inv-window .inv-slot.empty { background: var(--pb-screen) !important; box-shadow: inset 0 0 0 2px var(--pb-surface) !important; }
+.game-root .inv-window :is(.inv-qty, .inv-lv) { font-family: var(--pb-font-body) !important; text-shadow: 1px 1px 0 var(--pb-shadow-ink), -1px -1px 0 var(--pb-shadow-ink), 1px -1px 0 var(--pb-shadow-ink), -1px 1px 0 var(--pb-shadow-ink) !important; }
+.game-root .inv-window .inv-flash { border-radius: 0 !important; background: var(--pb-screen) !important; color: var(--pb-ink) !important; box-shadow: var(--pb-frame-border) !important; }
+
+/* ---------- Menu da conta (.sel-window: Minha Conta, Termos, Configurações, Sair) ----------
+   Itens em pixel; o escolhido ganha a setinha ▶ dos menus de Pokémon. */
+.game-root .sel-overlay { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; background: rgba(5, 7, 10, .72) !important; }
+.game-root .sel-window {
+  border: 0 !important;
+  border-image: none !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .sel-window::after { display: none !important; }  /* filete dourado no topo */
+.game-root .sel-window .sel-header img { filter: none !important; }
+.game-root .sel-window .sel-divider-line { background: var(--pb-border) !important; height: 2px !important; }
+.game-root .sel-window .sel-divider-gem { border: 0 !important; border-radius: 0 !important; background: var(--pb-pika-yellow) !important; box-shadow: var(--pb-frame-ink) !important; }
+.game-root .sel-window .sel-item {
+  position: relative;
+  color: var(--pb-ink) !important;
+  text-shadow: none !important;
+  font: 400 12px/20px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .sel-window .sel-item::before { content: "▶"; position: absolute; left: -20px; top: 0; color: var(--pb-pika-yellow); opacity: 0; }
+.game-root .sel-window .sel-item:is(:hover, :focus-visible) { color: var(--pb-pika-yellow) !important; }
+.game-root .sel-window .sel-item:is(:hover, :focus-visible)::before { opacity: 1; }
+.game-root .sel-window .sel-discord { color: var(--pb-ink-muted) !important; font-family: var(--pb-font-body) !important; }
+.game-root .sel-window .sel-discord:hover { color: var(--pb-ink) !important; }
 
 /* ---------- Pokédex: ficha do Pokémon (detalhe dentro da janela) ---------- */
 .game-root .dex-window .dex-back {
