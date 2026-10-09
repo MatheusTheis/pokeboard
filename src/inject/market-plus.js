@@ -251,7 +251,7 @@
 
 // Preços para comparar Mercado × Mark: usados no Anunciar (acima) e na Loja do Mark (abaixo).
 // Mercado: quando abre, o jogo baixa todos os anúncios de uma vez (preço por unidade). Daqui sai o mais barato em
-// dollars de cada item e de cada espécie (Pokémon sem shiny, qualquer nível), fora os seus; fica guardado com a hora
+// dollars de cada item e os anúncios de cada espécie (Pokémon sem shiny, com IV e qualidade), fora os seus; fica guardado com a hora
 // no localStorage do painel, para valer também depois de fechar o Mercado.
 // Mark: o npcPrice do /game/items.json, o que ele paga por unidade de cada item.
 // Nada é buscado da API: vale o que o jogo carregou da última vez.
@@ -262,6 +262,10 @@
   const KEY = 'pb:market-min';            // localStorage do painel: o mais barato de cada item + a hora
   const FEE = 0.03;                       // taxa do Mercado sobre vendas em dollars (2% para VIP, no código do jogo)
   const FEE_CAP = 1e6;                    // a taxa de um anúncio não passa disso
+  const IV_MARGIN = 10;                   // Pokémon "parecido": mesma raridade e IV até 10 de diferença
+  // Raridade do Pokémon pelo multiplicador de qualidade, nas mesmas faixas do jogo (qualityInfo).
+  const GRADES = [[4, 'Divina'], [3, 'Anciã'], [2, 'Mítica'], [1.7, 'Lendária'], [1.5, 'Épica'], [1.3, 'Rara'], [1.1, 'Incomum'], [1, 'Comum'], [-Infinity, 'Fraca']];
+  const grade = q => GRADES.find(([min]) => q >= min)[1];
 
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const species = name => norm(String(name || '').replace(/\s+lv\.?\s*\d+$/i, ''));  // "Larvitar Lv.1" -> "larvitar"
@@ -277,9 +281,8 @@
       if ((l.ids || [l.id]).every(id => mine.has(id))) continue;
       if (l.kind === 'pokemon') {
         if (l.shiny) continue;
-        const k = species(l.name), cur = pokes[k];
-        if (!cur) pokes[k] = { p: l.price, n: 1 };
-        else { cur.n++; if (l.price < cur.p) cur.p = l.price; }
+        const k = species(l.name);
+        (pokes[k] = pokes[k] || []).push([l.price, l.ivTotal ?? -1, l.quality ?? 1]);  // [preço, IV, qualidade]
         continue;
       }
       const k = norm(l.name), cur = items[k];
@@ -309,6 +312,17 @@
     market: () => market,
     net: p => Math.floor(p * (1 - FEE)),          // o que o vendedor recebe no Mercado, por unidade
     fee: total => Math.min(FEE_CAP, Math.floor(total * FEE)),  // taxa de um anúncio, como o jogo calcula
+    IV_MARGIN, grade, GRADE_NAMES: GRADES.map(([, g]) => g),
+    // Anúncio mais barato da espécie com a mesma raridade (qualquer multiplicador dela) e IV a até IV_MARGIN.
+    // null: nenhum parecido; undefined: dados antigos, sem IV (abrir o Mercado de novo resolve).
+    similar(name, iv, label) {
+      const list = market?.pokes?.[species(name)];
+      if (!Array.isArray(list)) return list ? undefined : null;
+      const hits = list.filter(([, i, q]) => i >= 0 && Math.abs(i - iv) <= IV_MARGIN && norm(grade(q)) === norm(label));
+      if (!hits.length) return null;
+      const [p, i, q] = hits.reduce((a, b) => (b[0] < a[0] ? b : a));
+      return { p, iv: i, q, n: hits.length, all: list.length };
+    },
     npc: name => npcMap()?.get(norm(name)),        // o que o Mark paga; undefined = sem dado
   };
 })();
@@ -318,7 +332,7 @@
 // na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro do limite do controle deslizante do jogo.
 // Só preenche o campo; a compra continua no botão Comprar do jogo.
 // Nas três abas (Comprar, Vender, Pokémon): ao lado do preço do Mark, o anúncio mais barato em dollars do mesmo item
-// ou espécie no Mercado, já sem a taxa nas vendas (abaixo).
+// no Mercado (no Pokémon, do parecido: mesma espécie e raridade, IV ±10), já sem a taxa nas vendas (abaixo).
 (() => {
   if (window.__pbMark) return;
   window.__pbMark = true;
@@ -428,10 +442,12 @@
         `Anúncio mais barato em dollars: 💲${fmt(m.p)} por unidade (${fmt(m.q)} un, ${sellers(m.s)}); menos ${fee} de taxa, rende 💲${fmt(v)}. `
         + `O Mark paga 💲${fmt(mark)}.${total}`];
     },
+    // Pokémon: o mais barato parecido (mesma espécie e raridade, IV ±10); m.want = { iv, label } da linha.
     poke: (m, mark) => {
       const v = net(m.p), cmp = v > mark ? 'good' : v < mark ? 'bad' : 'same';
-      return [cmp, `${{ good: '▲', bad: '▼', same: '=' }[cmp]} Mercado rende 💲${fmt(v)}`,
-        `Mais barato da espécie à venda em dollars (qualquer nível e IV, sem shiny): 💲${fmt(m.p)}, entre ${fmt(m.n)} anúncio(s); `
+      return [cmp, `${{ good: '▲', bad: '▼', same: '=' }[cmp]} Parecido rende 💲${fmt(v)}`,
+        `Mais barato parecido à venda em dollars: mesma espécie, ${m.want.label} (qualquer multiplicador) e IV de ${m.want.iv - P.IV_MARGIN} a ${m.want.iv + P.IV_MARGIN}, sem shiny. `
+        + `💲${fmt(m.p)} (IV ${m.iv}, ×${m.q.toFixed(2)}), entre ${fmt(m.n)} parecido(s) de ${fmt(m.all)} anúncio(s) da espécie; `
         + `menos ${fee} de taxa, rende 💲${fmt(v)}. O Mark paga 💲${fmt(mark)}.`
         + (market.pkCap ? ` O jogo só manda ${fmt(market.pkCap)} anúncios de Pokémon; pode haver mais barato.` : '')];
     },
@@ -463,7 +479,18 @@
       let el = info.querySelector('.pb-mks-mkt');
       if (!el) { el = document.createElement('div'); el.className = 'pb-mks-mkt'; info.append(el); }
       if (!market) { put(el, 'Mercado: abra o Mercado', 'Sem preços do Mercado ainda neste painel.', 'none'); continue; }
-      const m = mode === 'poke' ? market.pokes?.[species(name)] : market.items[norm(name)];
+      let m;
+      if (mode === 'poke') {
+        // "Nv 1 · · IV 100 Incomum": IV e raridade do Pokémon da linha.
+        const meta = row.querySelector('.mks-meta')?.textContent || '';
+        const iv = Number((meta.match(/IV\s*(\d+)/i) || [])[1]);
+        const label = P.GRADE_NAMES.find(g => norm(meta).includes(norm(g)));
+        if (!Number.isFinite(iv) || !label) { put(el, 'Mercado: sem IV ou raridade', `Não achei o IV e a raridade de ${name} nesta linha.`, 'none'); continue; }
+        m = P.similar(name, iv, label);
+        if (m === undefined) { put(el, 'Mercado: abra o Mercado de novo', 'Os preços guardados são de antes da comparação por IV e raridade.', 'none'); continue; }
+        if (!m) { put(el, `Mercado: nenhum parecido`, `Nenhum ${name} ${label} com IV de ${iv - P.IV_MARGIN} a ${iv + P.IV_MARGIN} à venda em dollars (${ago(Date.now() - market.at)}).`, 'none'); continue; }
+        m.want = { iv, label };
+      } else m = market.items[norm(name)];
       if (!m) { put(el, 'Mercado: sem anúncio em dollars', `Nenhum anúncio de ${name} em dollars no Mercado (${ago(Date.now() - market.at)}).`, 'none'); continue; }
       const mark = digits(row.querySelector(PRICE)?.textContent) || 0;
       const stock = mode === 'sell' ? digits((row.querySelector('.mks-meta')?.textContent || '').split('×')[0]) || 0 : 0;
