@@ -7,6 +7,7 @@ const path = require('path');
 const listeners = {};
 const elements = {};
 let tick, place = 'Cidade', flash = '', kills = 0, professionOpen = true;
+let dexWindow = null, dexOpens = 0, dexCloses = 0;
 const trips = [];
 const head = { after(...nodes) { for (const n of nodes) { n.parentNode = task; task[n.id] = n; } } };
 const task = { querySelector: q => q === '.prof-task-h' ? head : null };
@@ -30,6 +31,11 @@ const document = {
     if (q === '.prof-window .prof-hname') return { textContent: 'Treinador de Prestígio' };
     if (q === '.phud-tloc') return { textContent: `Nível 150 · ${place}` };
     if (q === '.cap-flash') return { textContent: flash };
+    if (q === '.dex-window') return dexWindow;
+    if (q === '.dock-btn[data-guide="dock-pokedex"]') return { click() {
+      dexOpens++;
+      dexWindow = { querySelector: selector => selector === '.ds-x' ? { click() { dexCloses++; dexWindow = null; } } : null };
+    } };
     return null;
   },
   querySelectorAll(q) { return q === '.ha-card' ? [card] : []; },
@@ -40,7 +46,7 @@ const window = {
     '/api/game/professions': cache({ nextStep: { species: { have: 0, need: 2 }, kills: [
       { type: 'FIRE', have: 0, need: 2 }, { type: 'WATER', have: 0, need: 2 },
     ] } }),
-    '/api/game/pokedex': cache({ species: [] }),
+    '/api/game/pokedex': null,
     '/game/creatures.json': cache({ creatures: [
       { pokeId: 1, name: 'Alpha', type1: 'FIRE' }, { pokeId: 2, name: 'Beta', type1: 'WATER' },
     ] }),
@@ -66,8 +72,19 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   // O botão montado fica no nó passado ao método after do cabeçalho.
   assert.ok(button, 'botão montado');
   flash = '🎉 Alpha capturado com Poké Ball!'; // log anterior não pode pular a primeira espécie
+  dexWindow = { querySelector: () => { throw new Error('não fechar janela do jogador'); } };
   button.click();
   await wait(0);
+  assert.equal(dexOpens, 0, 'não interfere na Pokédex aberta pelo jogador');
+  dexWindow = null;
+  tick();
+  assert.equal(dexOpens, 1, 'abre a Pokédex só para ler os dados iniciais');
+  assert.equal(dexCloses, 0);
+  window.__pbCache['/api/game/pokedex'] = cache({ species: [] });
+  listeners['pb:data']({ detail: { path: '/api/game/pokedex' } });
+  await wait(0);
+  assert.equal(dexCloses, 1, 'fecha somente a Pokédex aberta pela automação');
+  assert.equal(dexWindow, null);
   assert.deepEqual(trips, ['Alpha']);
   tick(); await wait(0);
   assert.deepEqual(trips, ['Alpha']);
@@ -77,6 +94,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   flash = ''; tick();
   flash = '🎉 Alpha capturado com Poké Ball!'; tick(); await wait(1100);
   assert.deepEqual(trips, ['Alpha', 'Beta']);
+  assert.equal(dexOpens, 1, 'troca de hunt com a Pokédex fechada');
   flash = '🎉 Beta capturado com Poké Ball!'; tick(); await wait(1100);
   assert.deepEqual(trips, ['Alpha', 'Beta', 'Alpha']);
   tick(); kills = 2; tick(); await wait(400);

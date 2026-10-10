@@ -17,6 +17,7 @@
   let expectedUntil = 0, previousHunt = '';
   let lastSavedKey = '', lastSavedAt = 0;
   let lastLoad = 0, creatureLoading = false;
+  let autoDexWindow = null, autoDexPending = 0;
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch {}
   const areaLevel = { kanto: 0, outland: 150, orre: 500, nightmare: 2000 };
@@ -75,6 +76,14 @@
     button.setAttribute('aria-pressed', 'false');
     say(message);
   }
+  function closeAutoDex() {
+    const open = document.querySelector('.dex-window');
+    if (autoDexPending && !autoDexWindow && open) autoDexWindow = open;
+    if (autoDexWindow && open !== autoDexWindow) { autoDexWindow = null; autoDexPending = 0; }
+    if (!autoDexWindow || !data(DEX)) return;
+    autoDexWindow.querySelector('.ds-x')?.click();
+    autoDexWindow = null; autoDexPending = 0;
+  }
   function start(resume = null) {
     running = true;
     target = null; extraKills = Object.create(null); caughtThisRun.clear();
@@ -109,8 +118,12 @@
         fetch(CREATURES).finally(() => { creatureLoading = false; }).catch(() => {});
       }
       if (Date.now() - lastLoad > 5000) {
-        const guide = !data(DEX) ? 'dock-pokedex' : !data(MARKERS)?.hunts ? 'dock-map' : '';
-        if (guide) { document.querySelector(`.dock-btn[data-guide="${guide}"]`)?.click(); lastLoad = Date.now(); }
+        if (!data(DEX) && !document.querySelector('.dex-window')) {
+          const dock = document.querySelector('.dock-btn[data-guide="dock-pokedex"]');
+          if (dock) { autoDexPending = Date.now(); dock.click(); closeAutoDex(); lastLoad = Date.now(); }
+        } else if (!data(MARKERS)?.hunts) {
+          document.querySelector('.dock-btn[data-guide="dock-map"]')?.click(); lastLoad = Date.now();
+        }
       }
       say(`Aguardando dados: ${missing.join(', ')}.`);
       return false;
@@ -210,6 +223,7 @@
     lastKills = n;
   }
   window.addEventListener('pb:data', e => {
+    if (e.detail?.path === DEX) closeAutoDex();
     if (!running) return;
     if (e.detail?.path === PROF) { extraKills = Object.create(null); target = null; advance(); }
     if (e.detail?.path === DEX) { target = null; advance(); }
@@ -237,6 +251,8 @@
     start(resume);
   }
   setInterval(() => {
+    if (autoDexPending && !autoDexWindow && Date.now() - autoDexPending > 5000) autoDexPending = 0;
+    if (autoDexPending) closeAutoDex();
     const game = document.querySelector('.game-root');
     const analyzer = game?.querySelector('.ha-window .ha-body');
     const host = analyzer || game;
