@@ -11,10 +11,16 @@
       return u.origin === location.origin && !u.pathname.startsWith('/api/auth/');
     } catch { return false; }
   };
+  // Mesma rota, conteúdos diferentes: no Mercado, as buscas da aba Pokémon (?browse=species|pokemon) e as categorias
+  // (?category=…, menos All) ganham chave própria, para não apagarem a lista principal (/api/game/market).
+  const keyOf = u => {
+    const b = u.searchParams.get('browse'), c = u.searchParams.get('category');
+    return b ? `${u.pathname}?browse=${b}` : c && c !== 'All' ? `${u.pathname}?category=${c}` : u.pathname;
+  };
   const store = (url, data) => {
     try {
       if (!watched(url)) return;
-      const p = new URL(url, location.href).pathname;
+      const p = keyOf(new URL(url, location.href));
       cache[p] = { data, at: Date.now() };
       window.dispatchEvent(new CustomEvent('pb:data', { detail: { path: p } }));
     } catch {}

@@ -288,7 +288,8 @@
   font: 700 9px/12px var(--pb-font-body);
   pointer-events: none;
 }
-.game-root .mkt2-window .mkt-ptile[data-pb-val-none]::after { color: var(--pb-ink-muted); }
+.game-root .mkt2-window .mkt-ptile[data-pb-val-kind="approx"]::after { opacity: .7; }   /* ~ mais barato da espécie */
+.game-root .mkt2-window .mkt-ptile[data-pb-val-kind="none"]::after { color: var(--pb-ink-muted); }
 .game-root .mkt2-window .mkt-tile[data-pb-gain]::after {
   content: attr(data-pb-gain);
   position: absolute;
