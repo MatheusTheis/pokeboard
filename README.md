@@ -26,6 +26,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | | |
 |---|---|
 | **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
+| **Rota de treino** | Botão **Rota** na barra vermelha: com o Pokémon ativo da conta em foco já preenchido (ou outro, com nível atual e alvo), abre no jogo uma janela com, para cada faixa de nível, a hunt de **maior dano** e a **mais segura** (Dá/Toma pelos golpes e tipos, nas áreas que o seu nível de treinador já abriu). O botão **PIW Tools** abre a rota otimizada do [PIW Tools](https://piwtools.com.br), de Rakupo / bar, já no Pokémon. |
 | **Economia** | Botão de quadros por segundo na barra vermelha (60 → 30 → 20): o jogo desenha menos, a GPU e o processador trabalham menos; a hunt continua no servidor. Medidor de memória da GPU, do total e de cada conta. |
 | **Zoom por painel** | Cada painel calcula o zoom para o jogo caber; ajuste fino com `−` `+` ou `Ctrl` + roda do mouse, salvo por conta. |
 | **Visual PokeBoard Retro** | Barra de telas no topo inteiro, cartão do jogador, barras segmentadas, chat e as janelas do jogo (Mercado, Pokédex, Breeding, Equipe, Streak, Missões, Perfil, Configurações, lojas de NPC, Daily Kill, Profissões, Rankings, Todos os Shinys, Slot Machine, Inventário, menu da conta) com carcaça vermelha e moldura de pixel. |
@@ -147,6 +148,7 @@ src/inject/game-skin.css    layout e visual do HUD, chat, mapa, Pokédex e Hunt 
 src/inject/game-windows.css visual das janelas do jogo, atalhos e card de informação
 src/inject/game-layout.js   medidas de layout, céu do Shopping, atalho Mercado · Mark, Derrotados → Pokédex
 src/inject/pb-card.js       card de informação (ficha de Pokémon ou item)
+src/inject/route.js         janela Rota de treino (hunts de maior dano e mais seguras por faixa de nível)
 src/inject/market-plus.js   filtro de moeda, Anunciar unificado, card do Histórico e Máx da Loja do Mark
 src/inject/map-plus.js      filtros e posição salvos no mapa
 src/inject/dock-editor.js   ✎ para reordenar a barra de telas

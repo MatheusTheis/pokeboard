@@ -64,6 +64,16 @@ window.addEventListener('pb:pref-save', () => {
   } catch {}
 });
 
+// Rota de treino: o board pede a janela (route.js, no mundo da página) pelo <html> + evento; o botão do PIW Tools
+// dela volta por aqui para o main, que abre o site.
+ipcRenderer.on('pb:route-open', (_, q) => {
+  document.documentElement.dataset.pbRoute = JSON.stringify(q || {});
+  window.dispatchEvent(new Event('pb:route-open'));
+});
+window.addEventListener('pb:route-piw', () => {
+  try { ipcRenderer.send('pb:open-route', JSON.parse(document.documentElement.dataset.pbRoutePiw || '{}')); } catch {}
+});
+
 // Ordem da barra de telas: o editor (dock-editor.js, no mundo da página) deixa a lista no <html>
 // e dispara o evento; daqui ela vai para o main, que salva no board.json e aplica em todas as contas.
 window.addEventListener('pb:dock-order-save', () => {
@@ -77,7 +87,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }

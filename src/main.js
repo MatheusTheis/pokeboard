@@ -39,7 +39,7 @@ const SKIN_CSS = new Set([
 const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard) */
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
 #pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age, #pb-sell-worth, #pb-pk-sort,
-#pb-dex-sort, #pb-dex-menu, #pb-toast { display: none !important; }`;
+#pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
@@ -57,6 +57,7 @@ const INJECT = {
   clog: path.join(__dirname, 'inject', 'capture-log-plus.js'),
   map: path.join(__dirname, 'inject', 'map-plus.js'),
   card: path.join(__dirname, 'inject', 'pb-card.js'),
+  route: path.join(__dirname, 'inject', 'route.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -303,6 +304,7 @@ function createView(i) {
   });
   wc.on('dom-ready', () => applyTheme(i));
   wc.on('before-input-event', (e, input) => handleShortcut(e, input, i));
+  wc.on('focus', () => { lastFocused = i; });  // conta da Rota de treino na grade
   // Ctrl + roda do mouse: o Electron só avisa, quem aplica o zoom somos nós.
   wc.on('zoom-changed', (_, dir) => stepZoom(i, dir === 'in' ? 1 : -1));
   // A página nova pode voltar ao zoom padrão: reaplica o do painel.
@@ -407,6 +409,69 @@ ipcMain.on('pb:set-fps', (_, fps) => {
   layout();  // o shell recebe o estado novo e atualiza o botão
 });
 ipcMain.on('pb:devtools', (_, i) => views[i]?.webContents.openDevTools({ mode: 'detach' }));
+
+// ---------- Rota de treino (PIW Tools) ----------
+// O Hunt Planner do PIW Tools (piwtools.com.br, de Rakupo / bar) calcula a rota de treino mais eficiente. O botão
+// Rota na barra vermelha abre a ferramenta deles já no Pokémon escolhido, pelo link direto que o próprio site usa
+// (/hunt?pokemon=…&level=…&tab=route&routeTarget=…), numa janela do PokeBoard com sessão própria. Nada do cálculo
+// vem para cá. Links para fora do site abrem no navegador.
+const ROUTE_ORIGIN = 'https://piwtools.com.br';
+let routeWin = null;
+// Conta de onde vem o Pokémon: a do modo Foco ou, na grade, a última que teve o foco (clicar na barra tira o foco
+// do painel, por isso guardamos a última).
+let lastFocused = 0;
+function routeAccount() {
+  const i = state.layout === 'focus' ? state.focus : lastFocused;
+  return views[i] ? i : 0;
+}
+const cleanRoute = q => {
+  const pokemon = String(q?.pokemon || '').trim().slice(0, 40);
+  const level = Math.max(1, Math.min(9999, Math.floor(Number(q?.level)) || 1));
+  const target = Math.max(level + 1, Math.min(9999, Math.floor(Number(q?.target)) || level + 1));
+  return pokemon ? { pokemon, level, target } : null;
+};
+// Abre a janela "Rota de treino" (route.js) no painel da conta.
+ipcMain.on('pb:route-show', (_, q) => {
+  const clean = cleanRoute(q), wc = views[routeAccount()]?.webContents;
+  if (clean && wc && !wc.isDestroyed()) { wc.send('pb:route-open', clean); wc.focus(); }
+});
+// Time da conta (HUD do jogo, só leitura) e a lista de Pokémon do jogo (creatures.json já carregado no painel).
+ipcMain.handle('pb:route-info', async () => {
+  const i = routeAccount(), wc = views[i]?.webContents, empty = { account: i, party: [], names: [], evo: {} };
+  if (!wc || wc.isDestroyed()) return empty;
+  try {
+    const info = await wc.executeJavaScript(`(() => {
+      const party = [...document.querySelectorAll('.phud-party .phud-mon')].map(b => ({
+        name: b.querySelector('.phud-name')?.textContent.trim() || '',
+        level: parseInt((b.querySelector('.phud-lv')?.textContent || '').replace(/\\D/g, ''), 10) || 1,
+        active: b.classList.contains('active'),
+      })).filter(p => p.name);
+      const list = window.__pbCache?.['/game/creatures.json']?.data?.creatures || [];
+      const evo = {};
+      for (const c of list) if (party.some(p => p.name === c.name)) evo[c.name] = c.evolveLevel || 0;
+      return { party, names: [...new Set(list.map(c => c.name))].sort(), evo };
+    })()`, true);
+    return { account: i, ...empty, ...info };
+  } catch { return empty; }
+});
+ipcMain.on('pb:open-route', (_, q) => {
+  const clean = cleanRoute(q);
+  if (!clean) return;
+  const url = `${ROUTE_ORIGIN}/hunt?${new URLSearchParams({ pokemon: clean.pokemon.toLowerCase(), level: String(clean.level), tab: 'route', routeTarget: String(clean.target) })}`;
+  if (!routeWin || routeWin.isDestroyed()) {
+    routeWin = new BrowserWindow({
+      width: 1280, height: 900, title: 'Rota de treino · PIW Tools', icon: ICON_PATH, autoHideMenuBar: true,
+      webPreferences: { partition: 'persist:piwtools', contextIsolation: true, sandbox: true, spellcheck: false },
+    });
+    const wc = routeWin.webContents;
+    const external = u => { if (/^https?:\/\//i.test(u)) shell.openExternal(u); };
+    wc.setWindowOpenHandler(({ url: u }) => { external(u); return { action: 'deny' }; });
+    wc.on('will-navigate', (e, u) => { if (!u.startsWith(`${ROUTE_ORIGIN}/`) && u !== ROUTE_ORIGIN) { e.preventDefault(); external(u); } });
+  }
+  routeWin.loadURL(url);
+  routeWin.show();
+  routeWin.focus();
+});
 
 // ---------- medidor de memória (barra vermelha e cabeçalho de cada conta) ----------
 // Memória em uso (working set) de cada conta, da GPU e do total, a cada 3 s. Em KB no Electron; mandamos em MB.

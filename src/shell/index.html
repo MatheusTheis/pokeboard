@@ -20,6 +20,17 @@
       <button data-layout="grid" class="pr-btn pr-btn--secondary" title="Tela dividida (Ctrl+0)">Grade</button>
       <button data-layout="focus" class="pr-btn pr-btn--secondary" title="Uma conta grande (Ctrl+1, Ctrl+2…)">Foco</button>
     </div>
+    <button id="btnRoute" class="pr-btn pr-btn--secondary" aria-expanded="false" aria-controls="routeBox"
+      title="Rota de treino mais eficiente para um Pokémon (Hunt Planner do PIW Tools)">Rota</button>
+    <form id="routeBox" class="route-box" hidden autocomplete="off">
+      <input id="routeName" class="pr-input" list="routeNames" placeholder="Pokémon" aria-label="Pokémon" required>
+      <datalist id="routeNames"></datalist>
+      <label class="route-lv">Nv <input id="routeLevel" class="pr-input" type="number" min="1" max="9999" aria-label="Nível atual" required></label>
+      <label class="route-lv">→ <input id="routeTarget" class="pr-input" type="number" min="2" max="9999" aria-label="Nível alvo" required></label>
+      <button type="submit" class="pr-btn" title="Hunts de maior dano e mais seguras por faixa de nível, na conta em foco">Abrir</button>
+      <button type="button" id="routePiw" class="pr-btn pr-btn--secondary"
+        title="Rota otimizada do PIW Tools (piwtools.com.br, de Rakupo / bar), numa janela própria">PIW Tools</button>
+    </form>
     <span class="spacer"></span>
     <span id="ram" class="ram" title="Memória em uso: GPU (desenho de todas as contas) e total do PokeBoard"></span>
     <button id="btnFps" class="pr-btn pr-btn--secondary" aria-pressed="false"

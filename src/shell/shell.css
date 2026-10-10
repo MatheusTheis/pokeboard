@@ -34,6 +34,15 @@ button { font: inherit; }
 .ram.is-high { color: var(--pb-pika-yellow); opacity: 1; }
 .cell-head .ram { flex: none; color: var(--pb-ink-muted); font-size: 12px; }
 .cell-head .ram.is-high { color: var(--pb-pika-yellow); }
+/* Rota de treino: formulário compacto na barra, aberto pelo botão Rota. */
+#btnRoute[aria-expanded="true"] { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
+.route-box { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.route-box[hidden] { display: none; }
+.route-box .pr-input { height: 24px; padding: 0 6px; font-size: 13px; }
+#routeName { width: 150px; }
+.route-lv { display: flex; align-items: center; gap: 4px; color: var(--pb-on-red); font: 600 13px/18px var(--pb-font-body); white-space: nowrap; }
+.route-lv .pr-input { width: 64px; }
+.route-box .pr-btn { padding-top: 1px; padding-bottom: 1px; font-size: 13px; }
 #btnFps[aria-pressed="true"] { box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
 .seg { display: flex; }
 .topbar .pr-btn { padding-top: 1px; padding-bottom: 1px; font-size: 14px; }
