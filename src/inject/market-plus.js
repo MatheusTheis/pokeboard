@@ -206,28 +206,48 @@
     }
     return null;
   }
+  // Ordem dos cards de Pokémon (o jogo mostra na ordem em que recebe): seletor nosso ao lado do filtro de tipo.
+  // Só CSS order na grade; a escolha fica no localStorage do painel.
+  const PK_SORT_KEY = 'pb:sell-pk-sort';
+  const PK_SORTS = [['', 'Ordem: padrão'], ['iv-desc', 'IV ↓'], ['iv-asc', 'IV ↑'], ['value-desc', 'Valor ↓']];
+  let pkSort = (() => { try { const v = localStorage.getItem(PK_SORT_KEY) || ''; return PK_SORTS.some(([k]) => k === v) ? v : ''; } catch { return ''; } })();
+  const pkSortSel = document.createElement('select');
+  pkSortSel.id = 'pb-pk-sort';
+  pkSortSel.setAttribute('aria-label', 'Ordem dos Pokémon');
+  pkSortSel.innerHTML = PK_SORTS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  pkSortSel.value = pkSort;
+  for (const ev of ['keydown', 'keyup', 'pointerdown', 'mousedown', 'click']) pkSortSel.addEventListener(ev, e => e.stopPropagation());
+  pkSortSel.addEventListener('change', () => { pkSort = pkSortSel.value; try { localStorage.setItem(PK_SORT_KEY, pkSort); } catch {} apply(); });
+
   function mountPokeValues(form) {
     const P = window.__pbPrices, pick = form.querySelector(':scope > .mkt-pick-pk');
     if (!P || !pick) return;
+    const fbar = pick.previousElementSibling?.matches('.mk-fbar') ? pick.previousElementSibling : null;
+    if (fbar && pkSortSel.parentElement !== fbar) { const type = fbar.querySelector('select.dep-fsel'); type ? type.after(pkSortSel) : fbar.append(pkSortSel); }
     const list = myPokes(pick);
     const byId = new Map((list || []).map(p => [String(p.id), p]));
-    let tiles = 0;
+    const rows = [];
     for (const t of pick.querySelectorAll('.mkt-ptile')) {
-      tiles++;
       const p = byId.get(String(fiberOf(t)?.key));
-      let val = null, kind = null;
+      let val = null, kind = null, price = -1;
       if (p && !p.shiny && p.name) {
         const m = P.similar(p.name, p.ivTotal ?? 0, P.grade(p.quality ?? 1));
-        if (m) val = compact(m.p);
+        if (m) { val = compact(m.p); price = m.p; }
         else if (m === null) {
           const sp = P.speciesMin(p.name);
-          if (sp) { val = `~${compact(sp.p)}`; kind = 'approx'; } else { val = '–'; kind = 'none'; }
+          if (sp) { val = `~${compact(sp.p)}`; kind = 'approx'; price = sp.p; } else { val = '–'; kind = 'none'; }
         }
       }
       setAttr(t, 'data-pb-val', val);
       setAttr(t, 'data-pb-val-kind', kind);
+      rows.push({ t, iv: p?.ivTotal ?? -1, price, i: rows.length });
     }
-    if (tiles && form.dataset.pbKind === 'pokemon') { askSpecies(pick); autoScan(pick); }
+    // Ordem: sem dado (IV ou valor) vai para o fim; empate fica na ordem do jogo.
+    const by = { 'iv-desc': r => -r.iv, 'iv-asc': r => (r.iv < 0 ? Infinity : r.iv), 'value-desc': r => (r.price < 0 ? Infinity : -r.price) }[pkSort];
+    const sorted = by ? [...rows].sort((a, b) => by(a) - by(b) || a.i - b.i) : [];
+    sorted.forEach((r, n) => { if (r.t.style.order !== String(n)) r.t.style.order = String(n); });
+    if (!by) for (const r of rows) if (r.t.style.order) r.t.style.removeProperty('order');
+    if (rows.length && form.dataset.pbKind === 'pokemon') { askSpecies(pick); autoScan(pick); }
   }
 
   // ---------- Anunciar › Pokémon: busca automática dos parecidos ----------
