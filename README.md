@@ -132,6 +132,7 @@ O jogo proíbe macros e automação sem autorização; a staff autorizou melhori
   - **Viajar para a hunt**, no botão direito de um card da Pokédex, aperta Mapa, a área e o "Viajar para" da hunt escolhida;
   - **Modo AFK da Rota**, após o clique em Iniciar AFK, repete a viagem pelo Mapa somente quando o Pokémon ativo alcança a próxima faixa de nível. Desbloquear no painel ou Encerrar a conta no menu AFK da topbar interrompe somente aquela rota;
   - **Automatizar hunts**, em Profissões → Treinador de Prestígio, escolhe a próxima hunt pela menor dificuldade entre espécies bloqueadas ainda não capturadas; após a primeira captura registrada, segue para a próxima espécie. Depois percorre as tipagens incompletas na ordem do jogo e viaja à hunt mais baixa de cada tipo. Usa o Mapa do próprio jogo, pode ser parado no mesmo botão e depende de Pokédex, Mapa, Profissões e Hunt Analyzer carregados. Rare Pokémon Picture continua manual; o PokeBoard não captura nem derrota por conta própria;
+  - **Troca de Poké Ball**, com o Auto-Catch normal ligado: quando a bola escolhida acaba, seleciona a próxima disponível na ordem Ultra → Super → Poké. Auto-Catch Shiny e Idle Ball não entram nessa sequência;
   - **Máx**, na Loja do Mark, preenche o campo de quantidade; quem compra é o botão Comprar do jogo;
   - **Vale vender** ligado, no Anunciar do Mercado, preenche moeda, quantidade e preço ao clicar num item; quem anuncia é o botão Anunciar do jogo, com a confirmação dele;
   - **valores dos Pokémon** no Anunciar: preenche os filtros da aba Pokémon do Mercado (espécie, raridade, IV) para a própria tela buscar os parecidos, uma busca por vez, no máximo 30 por rodada, e devolve os filtros como estavam; só consulta, não compra nem anuncia;
@@ -163,6 +164,7 @@ src/inject/map-plus.js      filtros e posição salvos no mapa
 src/inject/dock-editor.js   ✎ para reordenar a barra de telas
 src/inject/hud-plus.js      HUD minimalista
 src/inject/capture-log-plus.js  ✨ Shiny / IV↓ / Rar↓ no log de capturas
+src/inject/auto-ball.js         troca a bola do Auto-Catch normal ao esgotar o estoque
 src/inject/pokedex-plus.js  Pokédex+ e extras da Pokédex do jogo (filtros, ordem por hunt, viajar)
 src/recorder.js             gravador de estudo do jogo (PB_RECORD=1)
 theme/theme.css             o seu tema, aplicado por último

@@ -22,3 +22,4 @@ jobs:
       - run: node scripts/test-chat-plus.js
       - run: node scripts/test-activity.js
       - run: node scripts/test-prestige-auto.js
+      - run: node scripts/test-auto-ball.js

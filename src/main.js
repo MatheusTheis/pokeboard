@@ -62,6 +62,7 @@ const INJECT = {
   prestige: path.join(__dirname, 'inject', 'prestige-auto.js'),
   chat: path.join(__dirname, 'inject', 'chat-plus.js'),
   activity: path.join(__dirname, 'inject', 'activity.js'),
+  autoBall: path.join(__dirname, 'inject', 'auto-ball.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
