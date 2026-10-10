@@ -3,6 +3,20 @@ const COLORS = ['var(--c0)', 'var(--c1)', 'var(--c2)', 'var(--c3)'];
 const $ = s => document.querySelector(s);
 let current = null;
 
+// A barra pode ter mais controles que a largura da janela; roda do mouse navega até os ocultos.
+$('#accounts').addEventListener('wheel', e => {
+  const nav = e.currentTarget;
+  if (nav.scrollWidth <= nav.clientWidth || !e.deltaY) return;
+  nav.scrollLeft += e.deltaY;
+  e.preventDefault(); e.stopPropagation();
+}, { passive: false });
+$('.topbar').addEventListener('wheel', e => {
+  const bar = e.currentTarget;
+  if (bar.scrollWidth <= bar.clientWidth || !e.deltaY) return;
+  bar.scrollLeft += e.deltaY;
+  e.preventDefault();
+}, { passive: false });
+
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 function renderAccounts(state) {
@@ -102,20 +116,50 @@ function showMetrics() {
 }
 board.onMetrics(m => { metrics = m; showMetrics(); });
 
-let afkCells = [], afkAccount = null;
-function renderAfkPosition() {
-  const lock = $('#afkLock');
-  const afkCell = afkCells.find((c, i) => i === afkAccount && c.afkSlot);
-  lock.hidden = !afkCell;
-  if (!lock.hidden) Object.assign(lock.style, {
-    left: afkCell.x + 'px', top: afkCell.y + 'px',
-    width: afkCell.w + 'px', height: afkCell.h + 'px',
-  });
+let afkCells = [];
+const afkStatuses = new Map();
+function renderAfk() {
+  const controls = $('#afkControls'), menu = $('#afkMenu'), locks = $('#afkLocks');
+  controls.replaceChildren(); menu.replaceChildren(); locks.replaceChildren();
+  if (afkStatuses.size) {
+    const toggle = document.createElement('button');
+    toggle.className = 'pr-btn pr-btn--secondary';
+    toggle.textContent = `AFK ${afkStatuses.size} conta${afkStatuses.size === 1 ? '' : 's'} ▾`;
+    toggle.title = 'Ver e encerrar o AFK de cada conta';
+    toggle.onclick = () => { menu.hidden = !menu.hidden; };
+    controls.append(toggle);
+  } else menu.hidden = true;
+  for (const [i, message] of [...afkStatuses].sort(([a], [b]) => a - b)) {
+    const chip = document.createElement('button');
+    chip.className = 'pr-btn pr-btn--secondary';
+    chip.textContent = `AFK ${i + 1} · Encerrar`;
+    chip.title = `Encerrar somente o AFK da conta ${i + 1}`;
+    chip.onclick = () => board.stopAfk(i);
+    menu.append(chip);
+    const cell = afkCells[i];
+    if (!cell?.afkSlot) continue;
+    const lock = document.createElement('div');
+    lock.className = 'afk-lock';
+    lock.setAttribute('role', 'region');
+    lock.setAttribute('aria-label', `Modo AFK da conta ${i + 1}`);
+    Object.assign(lock.style, {
+      left: cell.x + 'px', top: cell.y + 'px', width: cell.w + 'px', height: cell.h + 'px',
+    });
+    lock.innerHTML = '<div class="afk-card"><span class="afk-led" aria-hidden="true"></span><h2>MODO AFK</h2><p class="afk-account"></p><p class="afk-status" role="status"></p><p class="afk-hint">Só esta conta está bloqueada e sem desenho.</p><button class="pr-btn afk-stop">Desbloquear esta conta</button></div>';
+    lock.querySelector('.afk-account').textContent = `Conta ${i + 1}`;
+    lock.querySelector('.afk-status').textContent = message;
+    lock.querySelector('.afk-stop').onclick = () => board.stopAfk(i);
+    locks.append(lock);
+  }
 }
+document.addEventListener('click', e => {
+  if (!e.target.closest('#afkMenu, #afkControls')) $('#afkMenu').hidden = true;
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#afkMenu').hidden = true; });
 board.onLayout(data => {
   current = data.state; renderAccounts(data.state); renderCells(data);
   afkCells = data.cells;
-  renderAfkPosition();
+  renderAfk();
 });
 board.getState().then(s => { current = s; renderAccounts(s); });
 document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.setLayout(b.dataset.layout));
@@ -125,25 +169,19 @@ $('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
 $('#btnIv').onclick = () => board.openIv();
 let afkNoticeTimer = 0;
 board.onAfk(({ active, account, message }) => {
-  afkAccount = active ? account : null;
-  const chip = $('#btnAfkActive');
-  chip.hidden = !active;
-  if (active) chip.textContent = `AFK conta ${account + 1} · Encerrar`;
-  renderAfkPosition();
+  if (active) afkStatuses.set(account, message || 'Acompanhando o nível…');
+  else afkStatuses.delete(account);
+  renderAfk();
   if (active) {
     $('#afkNotice').hidden = true;
-    $('#afkAccount').textContent = `Conta ${account + 1}`;
-    $('#afkStatus').textContent = message || 'Acompanhando o nível…';
   } else if (message) {
     const note = $('#afkNotice');
-    note.textContent = `AFK encerrado: ${message}`;
+    note.textContent = `Conta ${account + 1} · AFK encerrado: ${message}`;
     note.hidden = false;
     clearTimeout(afkNoticeTimer);
     afkNoticeTimer = setTimeout(() => { note.hidden = true; }, 9000);
   }
 });
-$('#btnAfkStop').onclick = () => board.stopAfk();
-$('#btnAfkActive').onclick = () => board.stopAfk();
 // ---------- Rota de treino (PIW Tools) ----------
 // Formulário compacto na própria barra (abaixo dela é o jogo). Vem preenchido com o Pokémon ativo da conta em foco;
 // a lista sugere primeiro o time dela. "Abrir" mostra a janela de rota no painel da conta (route.js); "PIW Tools"

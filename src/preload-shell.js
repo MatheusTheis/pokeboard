@@ -17,7 +17,7 @@ contextBridge.exposeInMainWorld('board', {
   openRoute: q => ipcRenderer.send('pb:open-route', q),          // o mesmo → PIW Tools, numa janela própria
   openIv: () => ipcRenderer.send('pb:open-iv'),
   onAfk: cb => ipcRenderer.on('pb:afk', (_, data) => cb(data)),
-  stopAfk: () => ipcRenderer.send('pb:afk-stop'),
+  stopAfk: i => ipcRenderer.send('pb:afk-stop', i),
   devtools: i => ipcRenderer.send('pb:devtools', i),
   openTheme: () => ipcRenderer.send('pb:open-theme'),
   rename: (i, name) => ipcRenderer.send('pb:rename', i, name),

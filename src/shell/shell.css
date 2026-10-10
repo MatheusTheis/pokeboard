@@ -1,6 +1,6 @@
 /* Interface do board no PokeBoard Retro. Medidas batem com main.js (TOPBAR_H, CELL_HEADER_H, GAP). */
 :root {
-  --topbar-h: 36px;
+  --topbar-h: 44px;
   --cell-header-h: 24px;
   --gap: 4px;
   /* Cor de cada conta (bolinha no topo e no cabeçalho do painel). */
@@ -23,13 +23,16 @@ button { font: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 8px 4px 12px;
+  padding: 0 8px 6px 12px;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pb-pika-yellow) var(--pb-dex-red-deep);
   background: var(--pb-dex-red);
   box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep);
 }
-.topbar::-webkit-scrollbar { display: none; }
+.topbar::-webkit-scrollbar { height: 6px; }
+.topbar::-webkit-scrollbar-thumb { background: var(--pb-pika-yellow); }
+.topbar > :not(.spacer) { flex-shrink: 0; }
 .brand { margin: 0 4px 0 2px; color: var(--pb-on-red); font: 400 8px/12px var(--pb-font-pixel); text-transform: uppercase; white-space: nowrap; }
 .spacer { flex: 1; }
 /* Medidor de memória: texto pequeno na carcaça (amarelo quando alto) e no cabeçalho de cada conta. */
@@ -51,8 +54,8 @@ button { font: inherit; }
 .topbar .pr-btn { padding-top: 1px; padding-bottom: 1px; font-size: 14px; }
 
 /* Contas: teclas escuras na carcaça; a em foco ganha moldura amarela. */
-.accounts { display: flex; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
-.accounts::-webkit-scrollbar { display: none; }
+.accounts { display: flex; gap: 6px; min-width: 0; max-width: min(36vw, 460px); overflow-x: auto; scrollbar-width: thin; scrollbar-color: var(--pb-pika-yellow) var(--pb-dex-red-deep); }
+.accounts::-webkit-scrollbar { height: 4px; }
 #btnAddAccount { flex: none; white-space: nowrap; }
 .acc {
   display: flex;
@@ -78,8 +81,9 @@ button { font: inherit; }
 .acc .key { color: var(--pb-ink-muted); font: 400 8px/12px var(--pb-font-pixel); }
 .acc input { width: 110px; }
 .afk-lock { position: fixed; z-index: 100; display: grid; place-items: center; overflow: auto; background: var(--pb-screen); }
-.afk-lock[hidden] { display: none; }
-.topbar #btnAfkActive[hidden] { display: none; }
+.afk-controls { display: flex; flex: none; gap: 4px; }
+.afk-menu { position: fixed; z-index: 200; top: var(--topbar-h); right: 8px; display: grid; gap: 6px; min-width: 190px; padding: 10px; background: var(--pb-surface); box-shadow: var(--pb-frame-ink), 4px 4px var(--pb-shadow-ink); }
+.afk-menu[hidden] { display: none; }
 .afk-notice { position: fixed; z-index: 10000; top: 44px; left: 50%; transform: translateX(-50%); max-width: min(90vw, 560px); padding: 9px 14px; background: var(--pb-surface); color: var(--pb-pika-yellow); box-shadow: var(--pb-frame-border), 3px 3px var(--pb-shadow-ink); }
 .afk-notice[hidden] { display: none; }
 .afk-card { width: min(460px, calc(100% - 32px)); padding: 24px; text-align: center; background: var(--pb-surface); box-shadow: var(--pb-frame-ink), 7px 7px var(--pb-shadow-ink); }

@@ -15,7 +15,7 @@ const GAME_URL = process.env.PB_GAME_URL || 'https://poke.idleworld.online/play'
 const GAME_ORIGIN = new URL(GAME_URL).origin;
 // Moldura do board: o mínimo possível, o resto é jogo. Precisam bater com as variáveis de shell.css.
 const SIDEBAR_W = 0;       // sem barra lateral (contas e ações ficam na barra do topo)
-const TOPBAR_H = 36;       // --topbar-h
+const TOPBAR_H = 44;       // --topbar-h
 const CELL_HEADER_H = 24;  // --cell-header-h
 const GAP = 4;             // --gap
 
@@ -87,8 +87,7 @@ let win;
 let ivWin = null;
 let recorder = null;   // gravador do PB_RECORD (recorder.js)
 const views = [];      // um WebContentsView por conta
-let afkSession = null; // temporário: fecha ao desbloquear ou encerrar o app
-let afkPoll = null;
+const afkSessions = new Map(); // uma rota e um relógio independentes por conta
 const themeKeys = [];  // chaves dos CSS inseridos em cada painel, para trocar sem recarregar
 const MAX_ACCOUNTS = 4;
 let state = {
@@ -231,7 +230,7 @@ function layout() {
   if (!win) return;
   const cells = computeCells();
   cells.forEach((c, i) => {
-    c.afkSlot = c.visible && afkSession?.account === i;
+    c.afkSlot = c.visible && afkSessions.has(i);
     if (c.afkSlot) c.visible = false; // somente esta conta deixa de desenhar
     // Painel escondido mantém o zoom que tinha: recalcular ali só faria o jogo redesenhar à toa.
     c.zoom = c.visible ? zoomFor(i, c) : (lastCells[i]?.zoom ?? 1);
@@ -267,7 +266,7 @@ function stepZoom(i, dir) {
 // Vale no shell e em cada painel; no shell, o zoom age sobre a conta em foco.
 // Alt fica de fora porque AltGr chega como Ctrl+Alt no Windows.
 function handleShortcut(e, input, i = state.layout === 'focus' ? state.focus : -1, fromGame = false) {
-  if (fromGame && afkSession?.account === i) { e.preventDefault(); return; }
+  if (fromGame && afkSessions.has(i)) { e.preventDefault(); return; }
   if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
   if (/^[1-9]$/.test(input.key) && +input.key <= views.length) { setFocus(+input.key - 1); e.preventDefault(); }
   else if (input.key === '0') { setLayout('grid'); e.preventDefault(); }
@@ -317,8 +316,8 @@ function createView(i) {
   // A página nova pode voltar ao zoom padrão: reaplica o do painel.
   wc.on('did-navigate', () => applyZoom(i));
   wc.on('dom-ready', () => applyZoom(i));
-  wc.on('did-start-navigation', () => { if (afkSession?.account === i) stopAfk('Painel recarregado; modo AFK encerrado.'); });
-  wc.on('render-process-gone', () => { if (afkSession?.account === i) stopAfk('Painel interrompido; modo AFK encerrado.'); });
+  wc.on('did-start-navigation', () => { if (afkSessions.has(i)) stopAfk(i, 'Painel recarregado; modo AFK encerrado.'); });
+  wc.on('render-process-gone', () => { if (afkSessions.has(i)) stopAfk(i, 'Painel interrompido; modo AFK encerrado.'); });
 
   // PB_DEBUG=1 repete no terminal os avisos e erros do console do painel (para testar a Fase 0).
   // Ignora iframes de terceiros (ex.: o captcha da Cloudflare no login), que só fazem barulho.
@@ -523,36 +522,38 @@ ipcMain.on('pb:open-iv', e => {
 });
 ipcMain.on('pb:afk-start', (e, request) => {
   const i = viewIndex(e), clean = cleanRoute(request?.route);
-  if (i < 0 || afkSession || !clean) return;
+  if (i < 0 || afkSessions.has(i) || !clean) return;
   const mode = request?.mode === 'dmg' ? 'dmg' : 'safe';
-  afkSession = { account: i, route: clean, mode };
+  const session = { route: clean, mode, poll: null };
+  afkSessions.set(i, session);
   views[i].webContents.send('pb:afk-render', true);
   layout();
   win.webContents.send('pb:afk', { active: true, account: i, message: 'Preparando a rota…' });
   views[i].webContents.send('pb:afk-on', { ...clean, mode });
-  afkPoll = setInterval(() => {
+  session.poll = setInterval(() => {
     const wc = views[i]?.webContents;
-    if (afkSession?.account !== i || !wc || wc.isDestroyed()) return;
-    wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk('Não consegui acompanhar o nível da conta.'));
+    if (afkSessions.get(i) !== session || !wc || wc.isDestroyed()) return;
+    wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk(i, 'Não consegui acompanhar o nível da conta.'));
   }, 5000);
 });
-function stopAfk(message = '') {
-  if (!afkSession) return;
-  clearInterval(afkPoll); afkPoll = null;
-  const i = afkSession.account;
-  afkSession = null;
+function stopAfk(i, message = '') {
+  const session = afkSessions.get(i);
+  if (!session) return;
+  clearInterval(session.poll);
+  afkSessions.delete(i);
   views[i]?.webContents.send('pb:afk-off');
   views[i]?.webContents.send('pb:afk-render', false);
   layout();
-  win.webContents.send('pb:afk', { active: false, message });
+  win.webContents.send('pb:afk', { active: false, account: i, message });
 }
-ipcMain.on('pb:afk-stop', e => { if (e.sender === win?.webContents) stopAfk(); });
+ipcMain.on('pb:afk-stop', (e, i) => { if (e.sender === win?.webContents && Number.isInteger(i)) stopAfk(i); });
 ipcMain.on('pb:afk-status', (e, message) => {
-  if (viewIndex(e) === afkSession?.account) win.webContents.send('pb:afk', {
-    active: true, account: afkSession.account, message: String(message).slice(0, 180),
+  const i = viewIndex(e);
+  if (afkSessions.has(i)) win.webContents.send('pb:afk', {
+    active: true, account: i, message: String(message).slice(0, 180),
   });
 });
-ipcMain.on('pb:afk-done', (e, message) => { if (viewIndex(e) === afkSession?.account) stopAfk(String(message).slice(0, 180)); });
+ipcMain.on('pb:afk-done', (e, message) => { const i = viewIndex(e); if (afkSessions.has(i)) stopAfk(i, String(message).slice(0, 180)); });
 ipcMain.handle('pb:iv-ocr', async (e, dataUrl) => {
   if (e.sender !== ivWin?.webContents || typeof dataUrl !== 'string' || dataUrl.length > 16_000_000) throw Error('Print inválido ou grande demais (máximo 12 MB).');
   const match = dataUrl.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
