@@ -89,7 +89,6 @@ let recorder = null;   // gravador do PB_RECORD (recorder.js)
 const views = [];      // um WebContentsView por conta
 let afkSession = null; // temporário: fecha ao desbloquear ou encerrar o app
 let afkPoll = null;
-let afkHiddenWindows = [];
 const themeKeys = [];  // chaves dos CSS inseridos em cada painel, para trocar sem recarregar
 const MAX_ACCOUNTS = 4;
 let state = {
@@ -232,7 +231,8 @@ function layout() {
   if (!win) return;
   const cells = computeCells();
   cells.forEach((c, i) => {
-    if (afkSession) c.visible = false; // sem desenho e sem interação nos painéis enquanto AFK
+    c.afkSlot = c.visible && afkSession?.account === i;
+    if (c.afkSlot) c.visible = false; // somente esta conta deixa de desenhar
     // Painel escondido mantém o zoom que tinha: recalcular ali só faria o jogo redesenhar à toa.
     c.zoom = c.visible ? zoomFor(i, c) : (lastCells[i]?.zoom ?? 1);
     c.autoZoom = state.zoomAdjust[i] === 1;
@@ -266,8 +266,8 @@ function stepZoom(i, dir) {
 // Atalhos: Ctrl+1..N foca uma conta, Ctrl+0 volta para a grade, Ctrl+= / Ctrl+- mudam o zoom do painel.
 // Vale no shell e em cada painel; no shell, o zoom age sobre a conta em foco.
 // Alt fica de fora porque AltGr chega como Ctrl+Alt no Windows.
-function handleShortcut(e, input, i = state.layout === 'focus' ? state.focus : -1) {
-  if (afkSession && input.key !== 'Escape') { e.preventDefault(); return; }
+function handleShortcut(e, input, i = state.layout === 'focus' ? state.focus : -1, fromGame = false) {
+  if (fromGame && afkSession?.account === i) { e.preventDefault(); return; }
   if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
   if (/^[1-9]$/.test(input.key) && +input.key <= views.length) { setFocus(+input.key - 1); e.preventDefault(); }
   else if (input.key === '0') { setLayout('grid'); e.preventDefault(); }
@@ -310,7 +310,7 @@ function createView(i) {
     return { action: 'deny' };
   });
   wc.on('dom-ready', () => applyTheme(i));
-  wc.on('before-input-event', (e, input) => handleShortcut(e, input, i));
+  wc.on('before-input-event', (e, input) => handleShortcut(e, input, i, true));
   wc.on('focus', () => { lastFocused = i; });  // conta da Rota de treino na grade
   // Ctrl + roda do mouse: o Electron só avisa, quem aplica o zoom somos nós.
   wc.on('zoom-changed', (_, dir) => stepZoom(i, dir === 'in' ? 1 : -1));
@@ -526,9 +526,7 @@ ipcMain.on('pb:afk-start', (e, request) => {
   if (i < 0 || afkSession || !clean) return;
   const mode = request?.mode === 'dmg' ? 'dmg' : 'safe';
   afkSession = { account: i, route: clean, mode };
-  afkHiddenWindows = [ivWin, routeWin].filter(w => w && !w.isDestroyed() && w.isVisible());
-  afkHiddenWindows.forEach(w => w.hide());
-  views.forEach(v => v.webContents.send('pb:afk-render', true));
+  views[i].webContents.send('pb:afk-render', true);
   layout();
   win.webContents.send('pb:afk', { active: true, account: i, message: 'Preparando a rota…' });
   views[i].webContents.send('pb:afk-on', { ...clean, mode });
@@ -544,10 +542,8 @@ function stopAfk(message = '') {
   const i = afkSession.account;
   afkSession = null;
   views[i]?.webContents.send('pb:afk-off');
-  views.forEach(v => v.webContents.send('pb:afk-render', false));
+  views[i]?.webContents.send('pb:afk-render', false);
   layout();
-  afkHiddenWindows.forEach(w => { if (!w.isDestroyed()) w.show(); });
-  afkHiddenWindows = [];
   win.webContents.send('pb:afk', { active: false, message });
 }
 ipcMain.on('pb:afk-stop', e => { if (e.sender === win?.webContents) stopAfk(); });

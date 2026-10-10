@@ -26,7 +26,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | | |
 |---|---|
 | **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. **+ Conta** na barra superior adiciona uma conta sem recarregar as existentes. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
-| **Rota de treino** | Botão **Rota** na barra vermelha: lembra a última busca por conta, mostra a hunt de **maior dano** e a **mais segura** em cada faixa e permite ir diretamente a cada hunt. **Iniciar AFK nesta rota** acompanha o nível do Pokémon ativo e viaja à próxima hunt no começo da faixa escolhida; o painel fica bloqueado até **Desbloquear** ou `Esc`. O botão **PIW Tools** abre a rota otimizada do [PIW Tools](https://piwtools.com.br), de Rakupo / bar. |
+| **Rota de treino** | Botão **Rota** na barra vermelha: lembra a última busca por conta, mostra a hunt de **maior dano** e a **mais segura** em cada faixa e permite ir diretamente a cada hunt. **Iniciar AFK nesta rota** acompanha o nível do Pokémon ativo e viaja à próxima hunt no começo da faixa escolhida; apenas a conta escolhida fica bloqueada até **Desbloquear** ou **AFK · Encerrar** na topbar. O botão **PIW Tools** abre a rota otimizada do [PIW Tools](https://piwtools.com.br), de Rakupo / bar. |
 | **Calculadora de IV** | Botão **IV** ao lado de Rota: soma os seis valores individuais (0–32) e mostra o total de 192 e a porcentagem. Aceita print por arquivo, arrastar ou colar; OCR local sugere os valores, que devem ser conferidos. O print não é salvo. |
 | **Economia** | Botão de quadros por segundo na barra vermelha (60 → 30 → 20): o jogo desenha menos, a GPU e o processador trabalham menos; a hunt continua no servidor. Medidor de memória da GPU, do total e de cada conta. |
 | **Zoom por painel** | Cada painel calcula o zoom para o jogo caber; ajuste fino com `−` `+` ou `Ctrl` + roda do mouse, salvo por conta. |
@@ -92,7 +92,7 @@ O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o des
 
 O botão **60 fps** na barra vermelha limita quantos quadros por segundo as contas desenham (30 ou 20). Ao lado, o medidor mostra a memória da GPU (que desenha todas as contas) e o total; cada conta mostra a sua no cabeçalho, em amarelo quando passa de 1,5 GB. No modo Foco, as contas escondidas já param de desenhar.
 
-No **modo AFK da Rota**, todos os painéis do jogo ficam ocultos e o limite de desenho cai para 5 fps. O processo principal consulta o nível da conta a cada 5 segundos e a automação só usa o botão de viagem do Mapa. Isso reduz o trabalho de desenho e pode diminuir a memória da GPU, mas não garante queda da RAM usada pelas sessões. Se o Pokémon ativo mudar, a viagem não se confirmar ou o painel recarregar, o modo encerra. A rota do PokeBoard é estimada por tipos, não por XP/h.
+No **modo AFK da Rota**, somente o painel da conta escolhida fica oculto e seu limite de desenho cai para 5 fps. As outras contas e janelas continuam utilizáveis. O processo principal consulta o nível dessa conta a cada 5 segundos e a automação só usa o botão de viagem do Mapa. Isso reduz o trabalho de desenho e pode diminuir a memória da GPU, mas não garante queda da RAM usada pelas sessões. Se o Pokémon ativo mudar, a viagem não se confirmar ou o painel recarregar, o modo encerra. A rota do PokeBoard é estimada por tipos, não por XP/h.
 
 Ao abrir, o PokeBoard também ajusta o motor do navegador para gastar menos memória. Os valores ficam em `%APPDATA%\poke-board\board.json`, em `engine`, e valem na próxima vez que o app abrir:
 
@@ -126,7 +126,7 @@ O jogo proíbe macros e automação sem autorização; a staff autorizou melhori
   - o atalho **Mercado · Mark** aperta os botões do próprio jogo na ordem (voltar à cidade, ir ao Shopping, abrir o NPC) quando você escolhe uma das opções;
   - **Derrotados**, no Hunt Analyzer, aperta o botão Pokédex e o card da espécie (só telas de consulta);
   - **Viajar para a hunt**, no botão direito de um card da Pokédex, aperta Mapa, a área e o "Viajar para" da hunt escolhida;
-  - **Modo AFK da Rota**, após o clique em Iniciar AFK, repete a viagem pelo Mapa somente quando o Pokémon ativo alcança a próxima faixa de nível. O botão Desbloquear ou `Esc` interrompe o modo;
+  - **Modo AFK da Rota**, após o clique em Iniciar AFK, repete a viagem pelo Mapa somente quando o Pokémon ativo alcança a próxima faixa de nível. Desbloquear no painel ou AFK · Encerrar na topbar interrompe o modo;
   - **Automatizar hunts**, em Profissões → Treinador de Prestígio, escolhe a próxima hunt pela menor dificuldade entre espécies bloqueadas ainda não capturadas; após a primeira captura registrada, segue para a próxima espécie. Depois percorre as tipagens incompletas na ordem do jogo e viaja à hunt mais baixa de cada tipo. Usa o Mapa do próprio jogo, pode ser parado no mesmo botão e depende de Pokédex, Mapa, Profissões e Hunt Analyzer carregados. Rare Pokémon Picture continua manual; o PokeBoard não captura nem derrota por conta própria;
   - **Máx**, na Loja do Mark, preenche o campo de quantidade; quem compra é o botão Comprar do jogo;
   - **Vale vender** ligado, no Anunciar do Mercado, preenche moeda, quantidade e preço ao clicar num item; quem anuncia é o botão Anunciar do jogo, com a confirmação dele;

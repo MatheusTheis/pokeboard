@@ -102,22 +102,38 @@ function showMetrics() {
 }
 board.onMetrics(m => { metrics = m; showMetrics(); });
 
-board.onLayout(data => { current = data.state; renderAccounts(data.state); renderCells(data); });
+let afkCells = [], afkAccount = null;
+function renderAfkPosition() {
+  const lock = $('#afkLock');
+  const afkCell = afkCells.find((c, i) => i === afkAccount && c.afkSlot);
+  lock.hidden = !afkCell;
+  if (!lock.hidden) Object.assign(lock.style, {
+    left: afkCell.x + 'px', top: afkCell.y + 'px',
+    width: afkCell.w + 'px', height: afkCell.h + 'px',
+  });
+}
+board.onLayout(data => {
+  current = data.state; renderAccounts(data.state); renderCells(data);
+  afkCells = data.cells;
+  renderAfkPosition();
+});
 board.getState().then(s => { current = s; renderAccounts(s); });
 document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.setLayout(b.dataset.layout));
 $('#btnAddAccount').onclick = () => board.addAccount();
 $('#btnReloadAll').onclick = () => board.reloadAll();
 $('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
 $('#btnIv').onclick = () => board.openIv();
-const afkLock = $('#afkLock');
 let afkNoticeTimer = 0;
 board.onAfk(({ active, account, message }) => {
-  afkLock.hidden = !active;
+  afkAccount = active ? account : null;
+  const chip = $('#btnAfkActive');
+  chip.hidden = !active;
+  if (active) chip.textContent = `AFK conta ${account + 1} · Encerrar`;
+  renderAfkPosition();
   if (active) {
     $('#afkNotice').hidden = true;
     $('#afkAccount').textContent = `Conta ${account + 1}`;
     $('#afkStatus').textContent = message || 'Acompanhando o nível…';
-    $('#btnAfkStop').focus();
   } else if (message) {
     const note = $('#afkNotice');
     note.textContent = `AFK encerrado: ${message}`;
@@ -127,7 +143,7 @@ board.onAfk(({ active, account, message }) => {
   }
 });
 $('#btnAfkStop').onclick = () => board.stopAfk();
-document.addEventListener('keydown', e => { if (!afkLock.hidden && e.key === 'Escape') board.stopAfk(); });
+$('#btnAfkActive').onclick = () => board.stopAfk();
 // ---------- Rota de treino (PIW Tools) ----------
 // Formulário compacto na própria barra (abaixo dela é o jogo). Vem preenchido com o Pokémon ativo da conta em foco;
 // a lista sugere primeiro o time dela. "Abrir" mostra a janela de rota no painel da conta (route.js); "PIW Tools"

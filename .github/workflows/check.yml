@@ -16,4 +16,5 @@ jobs:
       - run: node scripts/check.js
       - run: node scripts/test-iv.js
       - run: node scripts/test-route-afk.js
+      - run: node scripts/test-afk-isolation.js
       - run: node scripts/test-prestige-auto.js

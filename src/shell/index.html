@@ -34,6 +34,7 @@
         title="Rota otimizada do PIW Tools (piwtools.com.br, de Rakupo / bar), numa janela própria">PIW Tools</button>
     </form>
     <span class="spacer"></span>
+    <button id="btnAfkActive" class="pr-btn pr-btn--secondary" hidden title="Encerrar AFK desta conta">AFK · Encerrar</button>
     <span id="ram" class="ram" title="Memória em uso: GPU (desenho de todas as contas) e total do PokeBoard"></span>
     <button id="btnFps" class="pr-btn pr-btn--secondary" aria-pressed="false"
       title="Economia: limita os quadros por segundo das contas (menos GPU e processador; a animação fica menos lisa). Clique para trocar.">60 fps</button>
@@ -46,10 +47,10 @@
   </header>
   <div id="cells"></div>
   <div id="afkNotice" class="afk-notice" hidden role="status"></div>
-  <div id="afkLock" class="afk-lock" hidden role="dialog" aria-modal="true" aria-labelledby="afkTitle">
+  <div id="afkLock" class="afk-lock" hidden role="region" aria-labelledby="afkTitle">
     <div class="afk-card"><span class="afk-led" aria-hidden="true"></span><h2 id="afkTitle">MODO AFK</h2>
       <p id="afkAccount"></p><p id="afkStatus" role="status">Preparando a rota…</p>
-      <p class="afk-hint">Painéis ocultos · 5 fps · progresso da hunt continua no jogo</p>
+      <p class="afk-hint">Só esta conta está bloqueada e sem desenho. As outras continuam disponíveis.</p>
       <button id="btnAfkStop" class="pr-btn">Desbloquear e voltar</button></div>
   </div>
   <script src="shell.js"></script>
