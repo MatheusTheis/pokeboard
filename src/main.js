@@ -39,7 +39,7 @@ const SKIN_CSS = new Set([
 const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard) */
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
 #pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age, #pb-sell-worth, #pb-pk-sort,
-#pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay { display: none !important; }`;
+#pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay, #pb-prestige-auto, #pb-prestige-status { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
@@ -58,6 +58,7 @@ const INJECT = {
   map: path.join(__dirname, 'inject', 'map-plus.js'),
   card: path.join(__dirname, 'inject', 'pb-card.js'),
   route: path.join(__dirname, 'inject', 'route.js'),
+  prestige: path.join(__dirname, 'inject', 'prestige-auto.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 

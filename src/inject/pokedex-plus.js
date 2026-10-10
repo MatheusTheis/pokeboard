@@ -633,29 +633,32 @@
   // Abre o mapa (se fechado), troca para a área da hunt e aperta o "Viajar para" dela.
   let traveling = false;
   async function travel(h) {
-    if (traveling) return;
+    if (traveling) return false;
     traveling = true;
     try {
       const marker = () => [...document.querySelectorAll(`${MAP_WIN} .hunt-marker`)].find(m =>
         norm(m.querySelector('.hunt-name')?.textContent) === norm(h.name) || norm((m.title || '').replace(/^viajar para\s*/i, '')) === norm(h.name));
       if (!document.querySelector(MAP_WIN)) {
         const btn = document.querySelector(MAP_BTN);
-        if (!btn) return toast('Não achei o botão do Mapa na barra de telas.');
+        if (!btn) { toast('Não achei o botão do Mapa na barra de telas.'); return false; }
         btn.click();
-        if (!await waitFor(() => document.querySelector(MAP_WIN), WAIT_MS)) return toast('O mapa não abriu.');
+        if (!await waitFor(() => document.querySelector(MAP_WIN), WAIT_MS)) { toast('O mapa não abriu.'); return false; }
       }
       if (!marker() && h.area) {
         const plate = [...document.querySelectorAll(`${MAP_WIN} .map-plate`)].find(p => norm(p.querySelector('img')?.alt) === norm(h.area));
-        if (plate?.classList.contains('locked')) return toast(`${cap(h.area)} ainda está bloqueada (${plate.title}).`);
+        if (plate?.classList.contains('locked')) { toast(`${cap(h.area)} ainda está bloqueada (${plate.title}).`); return false; }
         if (plate && !plate.classList.contains('on')) plate.click();
       }
       const m = await waitFor(marker, WAIT_MS);
-      if (!m) return toast(`Não achei ${h.name} no mapa; ele ficou aberto para você procurar.`);
+      if (!m) { toast(`Não achei ${h.name} no mapa; ele ficou aberto para você procurar.`); return false; }
       m.click();
+      return true;
     } finally {
       traveling = false;
     }
   }
+  // A fila do Treinador de Prestígio usa o mesmo índice e a mesma viagem do menu da Pokédex.
+  window.__pbDexHunts = { of: huntsOf, travel };
 
   // ---------- eventos ----------
   document.addEventListener('click', e => {

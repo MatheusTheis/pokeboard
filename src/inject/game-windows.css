@@ -937,6 +937,13 @@
   box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
 }
 .game-root .prof-window .prof-task-h { background: none !important; border-bottom: 2px solid var(--pb-surface-raised) !important; color: var(--pb-ink) !important; font: 600 14px/18px var(--pb-font-body) !important; }
+.game-root .prof-window #pb-prestige-auto {
+  display: block; margin: 8px 12px 4px; padding: 8px 12px; border: 0; border-radius: 0;
+  background: var(--pb-dex-red); color: var(--pb-on-red); box-shadow: var(--pb-frame-ink), 3px 3px 0 var(--pb-shadow-ink);
+  font: 400 9px/15px var(--pb-font-pixel); cursor: pointer;
+}
+.game-root .prof-window #pb-prestige-auto[aria-pressed="true"] { background: var(--pb-pika-yellow); color: var(--pb-on-yellow); }
+.game-root .prof-window #pb-prestige-status { margin: 0 12px 8px; color: var(--pb-ink-muted); font: 12px/18px var(--pb-font-body); }
 .game-root .prof-window .prof-type-chip { border: 0 !important; border-radius: 0 !important; background: var(--pb-surface) !important; box-shadow: var(--pb-frame-border) !important; }
 .game-root .prof-window .prof-type-chip.done { box-shadow: 0 0 0 2px var(--pb-success) !important; }
 .game-root .prof-window :is(.prof-current, .prof-event-banner) {
