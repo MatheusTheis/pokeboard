@@ -1,7 +1,8 @@
 // Mercado+: filtro de moeda (Dollars / Diamonds) no Mercado Global; no fim, o "Máx" do Comprar da Loja do Mark.
-// O filtro só mostra e esconde os anúncios que o jogo já carregou na página aberta: não busca nada, não clica em nada.
-// A lista do jogo é paginada no servidor (12 por página) e a API não tem filtro de moeda,
-// então o filtro vale para a página atual; o contador avisa quantos sobraram.
+// O filtro vale para a lista inteira: a tela do Mercado guarda a resposta da busca (todos os anúncios) e faz busca,
+// ordem e páginas de 12 no navegador. Com Dollars ou Diamonds, ela recebe uma cópia só com essa moeda, e as páginas
+// passam a ser dessa moeda. Na aba Pokémon com uma espécie escolhida, as páginas vêm do servidor (sem filtro de
+// moeda): ali o filtro esconde os anúncios da outra moeda na página aberta. Não busca nada nem clica em nada.
 (() => {
   if (window.__pbMarket) return;
   window.__pbMarket = true;
@@ -262,9 +263,47 @@
   });
   const countEl = control.querySelector('.pb-mkt-cur-count');
 
+  // ---------- filtro de moeda na lista inteira ----------
+  // A resposta da busca fica num useState da tela do Mercado (objeto com listings e catalog/mine). Lemos o estado
+  // pela fila do hook (queue.lastRenderedState, sempre a atual) e trocamos pelo dispatch dela, como a própria tela
+  // faz quando a busca termina. Quando o jogo busca de novo (abrir, trocar de categoria, comprar, cancelar), a lista
+  // nova vira a original e é filtrada outra vez; "Todas" devolve a original.
+  const isMarketData = v => v && typeof v === 'object' && Array.isArray(v.listings) && ('catalog' in v || 'mine' in v);
+  const curOf = l => (l.currency === 'DIAMONDS' ? 'DIAMONDS' : 'DOLLARS');
+  let origData = null, ourData = null, ourFor = '';
+  function dataHook() {
+    const starts = [win.querySelector('.mkt2-body'), win.querySelector('.mkt2-tabs'), win].filter(Boolean);
+    for (const el of starts) {
+      for (let f = fiberOf(el), d = 0; f && d < 80; f = f.return, d++) {
+        if (typeof f.type !== 'function') continue;
+        for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+          if (h.queue?.dispatch && isMarketData(h.queue.lastRenderedState)) return h.queue;
+        }
+      }
+    }
+    return null;
+  }
+  function filterWhole() {
+    const q = dataHook();
+    if (!q) return null;
+    const cur = q.lastRenderedState;
+    if (cur === ourData && ourFor === filter) return ourData;  // já é a nossa cópia desta moeda
+    if (cur !== ourData) origData = cur;                       // lista nova do jogo
+    if (!filter) {
+      ourData = null; ourFor = '';
+      if (cur !== origData) q.dispatch(origData);
+      return null;
+    }
+    ourData = { ...origData, listings: origData.listings.filter(l => curOf(l) === filter) };
+    ourFor = filter;
+    q.dispatch(ourData);
+    return ourData;
+  }
+
   function apply() {
     pending = 0;
     if (!win?.isConnected) return;
+    const whole = filterWhole();
     const slot = FILTER_SLOTS.map(s => win.querySelector(s)).find(Boolean);
     if (slot && control.parentElement !== slot) slot.append(control);
     if (win.dataset.pbCur !== filter) win.dataset.pbCur = filter;  // o CSS (game-skin.css) esconde por aqui
@@ -282,7 +321,10 @@
       if (c) { if (el.dataset.pbCur !== c) el.dataset.pbCur = c; } else if (el.dataset.pbCur) delete el.dataset.pbCur;
       if (!filter || !c || c === filter) shown++;
     });
-    const txt = !filter || !items.length ? ''
+    const label = CURS.find(([v]) => v === filter)?.[1] || '';
+    const txt = !filter ? ''
+      : whole ? `${whole.listings.length.toLocaleString('pt-BR')} em ${label} (de ${origData.listings.length.toLocaleString('pt-BR')})`
+      : !items.length ? ''
       : shown ? `${shown} de ${items.length} nesta página`
       : 'Nenhum nesta página: veja a próxima';
     // Só troca se mudou: trocar o texto também é uma mudança no DOM observado e reagendaria o apply.
