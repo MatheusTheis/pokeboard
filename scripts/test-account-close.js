@@ -23,7 +23,7 @@ const ctx = vm.createContext({
   dialog: { async showMessageBox() { return { response }; } },
   views, state, win, loginRestored, themeKeys, MAX_ACCOUNTS: 4,
   indexOfSlot: slot => state.accountSlots.indexOf(slot), createView: makeView,
-  stopAfk(slot) { stopped.push(slot); }, saveState() { saves++; }, layout() { layouts++; },
+  stopAfk(slot, message, preserve) { stopped.push({ slot, preserve }); }, saveState() { saves++; }, layout() { layouts++; },
 });
 Object.defineProperty(ctx, 'lastFocused', { get: () => lastFocused, set: v => { lastFocused = v; } });
 vm.runInContext(source.slice(start, end), ctx);
@@ -39,7 +39,7 @@ vm.runInContext(source.slice(start, end), ctx);
   assert.deepEqual(state.accountSlots, [0, 2], 'Conta 3 mantém o ID original');
   assert.deepEqual(views.map(v => v.slot), [0, 2]);
   assert.deepEqual(removed, [1]); assert.deepEqual(closed, [1]);
-  assert.deepEqual(stopped, [1], 'não interrompe o AFK da Conta 3');
+  assert.deepEqual(stopped, [{ slot: 1, preserve: true }], 'pausa só a aba fechada e guarda sua rota');
   assert.equal(state.focus, 1); assert.equal(lastFocused, 1);
   assert.equal(loginRestored.has(1), false, 'permite restaurar o login ao reabrir');
   handlers['pb:add-account']({ sender: win.webContents });

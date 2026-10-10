@@ -79,6 +79,7 @@ ipcRenderer.on('pb:afk-on', (_, q) => {
   window.dispatchEvent(new Event('pb:afk-on'));
 });
 ipcRenderer.on('pb:afk-off', () => window.dispatchEvent(new Event('pb:afk-off')));
+ipcRenderer.on('pb:afk-pause', () => window.dispatchEvent(new Event('pb:afk-pause')));
 window.addEventListener('pb:afk-start', () => {
   try { ipcRenderer.send('pb:afk-start', JSON.parse(document.documentElement.dataset.pbAfkStart || '{}')); } catch {}
 });
@@ -101,7 +102,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }

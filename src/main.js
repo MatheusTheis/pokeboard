@@ -39,7 +39,8 @@ const SKIN_CSS = new Set([
 const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard) */
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
 #pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age, #pb-sell-worth, #pb-pk-sort,
-#pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay, #pb-prestige-auto, #pb-prestige-status { display: none !important; }`;
+#pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay, #pb-prestige-auto, #pb-prestige-status,
+#pb-prestige-panel, #pb-chat-open, #pb-chat-hide { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
@@ -59,6 +60,8 @@ const INJECT = {
   card: path.join(__dirname, 'inject', 'pb-card.js'),
   route: path.join(__dirname, 'inject', 'route.js'),
   prestige: path.join(__dirname, 'inject', 'prestige-auto.js'),
+  chat: path.join(__dirname, 'inject', 'chat-plus.js'),
+  activity: path.join(__dirname, 'inject', 'activity.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -376,7 +379,7 @@ ipcMain.on('pb:add-account', e => {
 function closeAccount(slot) {
   const i = indexOfSlot(slot);
   if (i < 0 || views.length <= 1) return;
-  stopAfk(slot);
+  stopAfk(slot, '', true);
   const [view] = views.splice(i, 1);
   state.accountSlots.splice(i, 1);
   state.accountCount = views.length;
@@ -586,13 +589,13 @@ ipcMain.on('pb:afk-start', (e, request) => {
     wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk(slot, 'Não consegui acompanhar o nível da conta.'));
   }, 5000);
 });
-function stopAfk(slot, message = '') {
+function stopAfk(slot, message = '', preserve = false) {
   const session = afkSessions.get(slot);
   if (!session) return;
   clearInterval(session.poll);
   afkSessions.delete(slot);
   const wc = views[indexOfSlot(slot)]?.webContents;
-  wc?.send('pb:afk-off');
+  wc?.send(preserve ? 'pb:afk-pause' : 'pb:afk-off');
   wc?.send('pb:afk-render', false);
   layout();
   win.webContents.send('pb:afk', { active: false, account: slot, message });

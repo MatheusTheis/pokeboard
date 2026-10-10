@@ -386,6 +386,23 @@ html[data-pb-hud-min] .game-root .phud-mon:not(.active) {
 .game-root .ah-head:active { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink), 2px 2px 0 0 var(--pb-shadow-ink) !important; }
 
 /* ---------- chat ---------- */
+html[data-pb-chat-hidden] .game-root .chat-box { display: none !important; }
+.game-root #pb-chat-open {
+  position: fixed; left: 12px; bottom: 12px; z-index: 55;
+  width: 44px; height: 44px; display: grid; place-items: center; padding: 8px;
+  border: 0; border-radius: 0; background: var(--pb-dex-red); color: var(--pb-on-red);
+  box-shadow: var(--pb-frame-ink), 4px 4px var(--pb-shadow-ink); cursor: pointer;
+}
+.game-root #pb-chat-open[hidden] { display: none !important; }
+.game-root #pb-chat-open svg { width: 27px; height: 27px; }
+.game-root #pb-chat-open:hover, .game-root #pb-chat-open:focus-visible { box-shadow: var(--pb-frame-focus), 4px 4px var(--pb-shadow-ink); outline: none; }
+.game-root .chat-head #pb-chat-hide {
+  position: absolute; top: 10px; right: -56px; z-index: 3;
+  width: 25px; height: 24px; margin: 0; padding: 0; border: 0;
+  background: var(--pb-dex-red); color: var(--pb-on-red); box-shadow: var(--pb-frame-ink);
+  font: 700 18px/22px var(--pb-font-body); cursor: pointer;
+}
+.game-root .chat-head #pb-chat-hide:hover, .game-root .chat-head #pb-chat-hide:focus-visible { box-shadow: var(--pb-frame-focus); outline: none; }
 .game-root .chat-box {
   border: 0 !important;
   border-image: none !important;

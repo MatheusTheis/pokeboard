@@ -36,6 +36,8 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | **Loja do Mark** | Visual Retro nas abas Comprar, Vender e Pokémon, com o dinheiro num visor. No Comprar, **Máx** põe na quantidade o máximo que o dinheiro paga; a compra continua no botão Comprar do jogo. Nas três abas, cada item mostra o anúncio mais barato em dollars do Mercado (no Pokémon, o mais barato **parecido**: mesma espécie e raridade, com qualquer multiplicador dela, e IV até 10 de diferença), da última vez que o Mercado foi aberto, em verde quando o Mercado é o melhor negócio: no Comprar, mais barato que o Mark; no Vender e no Pokémon, rendendo mais que o Mark já sem a taxa de 3%. |
 | **Mapa** | Filtros próprios (busca, nível, tipos) e posição do mapa salvos ao fechar e reabrir, separados por conta; marcadores limpos para ver de longe. |
 | **Hunt Analyzer** | Abre num lugar livre da tela; "Capturados" abre o log de capturas e "Derrotados" abre a Pokédex do jogo na ficha do Pokémon da hunt. |
+| **Chat compacto** | **▾** no cabeçalho esconde a janela e deixa apenas um ícone no canto inferior esquerdo para reabrir. A escolha é lembrada por conta. |
+| **Treinador de Prestígio** | Botão largo para iniciar/parar a rota. Um card no Hunt Analyzer (ou no canto da tela, se ele estiver fechado) mostra a etapa, a hunt e quantos faltam. Abrir outras telas não para a rota; sair da hunt para outro lugar para. |
 | **Log de capturas** | ✨ Shiny, ordenar por IV ou por qualidade, com o IV sempre inteiro na tabela. |
 | **Ficha do Pokémon** | Card com tipos, raridade, hunt, evolução, situação na sua Pokédex e estatísticas base. |
 | **HUD minimalista** | ▴/▾ no cartão do jogador recolhe o time e deixa só o Pokémon ativo. |
@@ -92,7 +94,9 @@ O botão **Original**, na barra vermelha ao lado do ↻, mostra o jogo com o des
 
 O botão **60 fps** na barra vermelha limita quantos quadros por segundo as contas desenham (30 ou 20). Ao lado, o medidor mostra a memória da GPU (que desenha todas as contas) e o total; cada conta mostra a sua no cabeçalho, em amarelo quando passa de 1,5 GB. No modo Foco, as contas escondidas já param de desenhar.
 
-No **modo AFK da Rota**, cada painel escolhido fica oculto e seu limite de desenho cai para 5 fps. As contas sem AFK e outras janelas continuam utilizáveis. Cada conta em AFK tem sua própria consulta de nível a cada 5 segundos e sua automação só usa o botão de viagem do Mapa. Encerrar uma não interrompe as outras. Isso reduz o trabalho de desenho e pode diminuir a memória da GPU, mas não garante queda da RAM usada pelas sessões. Se o Pokémon ativo mudar, a viagem não se confirmar ou o painel recarregar, o modo encerra naquela conta. A rota do PokeBoard é estimada por tipos, não por XP/h.
+No **modo AFK da Rota**, cada painel escolhido fica oculto e seu limite de desenho cai para 5 fps. As contas sem AFK e outras janelas continuam utilizáveis. Cada conta em AFK tem sua própria consulta de nível a cada 5 segundos e sua automação só usa o botão de viagem do Mapa. Encerrar uma não interrompe as outras. Isso reduz o trabalho de desenho e pode diminuir a memória da GPU, mas não garante queda da RAM usada pelas sessões. Se o Pokémon ativo mudar, sair da hunt, a viagem não se confirmar ou o painel recarregar, o modo encerra naquela conta. A rota do PokeBoard é estimada por tipos, não por XP/h.
+
+Cada conta guarda localmente sua última hunt, Pokémon e nível. As rotas AFK e de Prestígio guardam a hunt e a etapa ao fechar a aba ou o aplicativo; só retomam após reabrir se ainda estiverem na mesma hunt. A rota AFK também confere o Pokémon ativo. Se estiver em outra hunt ou cidade, descartam a retomada. Parar manualmente também a descarta.
 
 Ao abrir, o PokeBoard também ajusta o motor do navegador para gastar menos memória. Os valores ficam em `%APPDATA%\poke-board\board.json`, em `engine`, e valem na próxima vez que o app abrir:
 

@@ -6,6 +6,8 @@ const assert = require('assert/strict');
 
 let level = 10, place = 'GrassA', timer = null;
 const events = {}, sent = [], travels = [];
+const saved = new Map();
+const localStorage = { getItem: k => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v), removeItem: k => saved.delete(k) };
 const html = { dataset: { pbAfkRoute: JSON.stringify({ pokemon: 'Flame', level: 10, target: 30, mode: 'dmg' }) } };
 const document = {
   documentElement: html,
@@ -31,18 +33,35 @@ const window = {
   addEventListener(name, fn) { events[name] = fn; },
   dispatchEvent(e) { sent.push(e.type); },
 };
-vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'src', 'inject', 'route.js'), 'utf8'),
-  { window, document, Event: class { constructor(type) { this.type = type; } },
+const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'inject', 'route.js'), 'utf8');
+const runPage = () => vm.runInNewContext(source,
+  { window, document, localStorage, Event: class { constructor(type) { this.type = type; } },
     setInterval: fn => { timer = fn; return 1; }, clearInterval: () => { timer = null; }, Date, setTimeout });
+runPage();
 
 (async () => {
   events['pb:afk-on']();
   assert.equal(travels.length, 0, 'primeira hunt já ativa');
+  assert.equal(JSON.parse(saved.get('pb:route:afk:v1')).hunt, 'GrassA');
   level = 20; await timer();
   assert.deepEqual(travels, ['GrassB'], 'mudou para a próxima hunt ao atingir o nível');
   await timer();
   level = 30; await timer();
   assert.ok(sent.includes('pb:afk-done'), 'desbloqueia ao chegar no alvo');
   assert.equal(timer, null);
+  assert.equal(saved.has('pb:route:afk:v1'), false);
+  level = 10; place = 'GrassA'; events['pb:afk-on']();
+  place = 'Cidade'; await timer();
+  assert.equal(saved.has('pb:route:afk:v1'), false, 'sair da hunt cancela a retomada');
+  const previous = JSON.stringify({ route: { pokemon: 'Flame', level: 10, target: 30 }, mode: 'dmg', hunt: 'GrassA', name: 'flame' });
+  saved.set('pb:route:afk:v1', previous);
+  place = 'GrassA'; window.__pbRoute = false; runPage();
+  const starts = sent.filter(x => x === 'pb:afk-start').length;
+  await timer();
+  assert.equal(sent.filter(x => x === 'pb:afk-start').length, starts + 1, 'retoma na mesma hunt');
+  saved.set('pb:route:afk:v1', previous);
+  place = 'Cidade'; window.__pbRoute = false; runPage();
+  await timer();
+  assert.equal(saved.has('pb:route:afk:v1'), false, 'outra localização impede a retomada');
   console.log('ok transição de hunt e encerramento AFK');
 })().catch(e => { console.error(e); process.exitCode = 1; });

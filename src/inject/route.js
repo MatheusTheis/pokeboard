@@ -13,6 +13,7 @@
   const CREATURES = '/game/creatures.json';
   const MARKERS = '/api/game/map-markers';
   const LOCATION = '.game-root .phud-tloc';    // "Nível 291 · War Heracross"
+  const AFK_SAVE = 'pb:route:afk:v1';
   const BASE_MAX_ID = 10000;                     // espécies da Pokédex; formas (Brave, Mega…) acima
   // Nível de treinador que libera cada área (placas do mapa: "Desbloqueia no nível …").
   const AREA_LEVEL = { kanto: 0, outland: 150, orre: 500, nightmare: 2000 };
@@ -150,6 +151,9 @@
   // Cliques e teclas aqui são nossos: não chegam nos atalhos do jogo.
   for (const ev of ['keydown', 'keyup', 'keypress', 'pointerdown', 'mousedown', 'click', 'wheel']) overlay.addEventListener(ev, e => e.stopPropagation());
   let last = null, lastResult = null, afkPlan = null, afkTimer = 0, lastAfkStatus = '';
+  let savedAfk = null, resuming = false, lastHunt = '';
+  try { savedAfk = JSON.parse(localStorage.getItem(AFK_SAVE) || 'null'); } catch {}
+  const forgetAfk = () => { savedAfk = null; try { localStorage.removeItem(AFK_SAVE); } catch {} };
   const close = () => { overlay.hidden = true; };
   overlay.addEventListener('click', e => {
     if (e.target === overlay || e.target.closest('.pb-route-x')) close();
@@ -220,6 +224,7 @@
   }
   function finish(message) {
     clearInterval(afkTimer); afkTimer = 0; afkPlan = null;
+    forgetAfk(); lastHunt = '';
     document.documentElement.dataset.pbAfkDone = message;
     window.dispatchEvent(new Event('pb:afk-done'));
   }
@@ -236,6 +241,8 @@
     missingSince = 0;
     const names = new Set([norm(plan.r.start.name), ...plan.r.ranges.map(x => norm(x.me.name))]);
     if (!names.has(now.name)) return finish('O Pokémon ativo mudou. Modo AFK encerrado.');
+    if (lastHunt && now.location && now.location !== norm(lastHunt) && now.location !== norm(expected))
+      return finish(`Você saiu da hunt ${lastHunt}. Modo AFK encerrado.`);
     if (now.level >= plan.r.T) return finish(`Alvo Nv ${plan.r.T} alcançado.`);
     const step = plan.r.ranges.find(x => x.a <= now.level && now.level < x.b);
     if (!step || step.none) return finish(`Sem hunt para o Nv ${now.level}.`);
@@ -245,7 +252,11 @@
       return status(`Viajando para ${expected}…`);
     }
     expected = '';
-    if (now.location === norm(hunt.name)) return status(`${now.name || plan.r.start.name} · Nv ${now.level}/${plan.r.T} · ${hunt.name} (próxima troca no Nv ${step.b})`);
+    if (now.location === norm(hunt.name)) {
+      lastHunt = hunt.name;
+      try { localStorage.setItem(AFK_SAVE, JSON.stringify({ route: plan.q, mode: plan.mode, hunt: hunt.name, name: now.name })); } catch {}
+      return status(`${now.name || plan.r.start.name} · Nv ${now.level}/${plan.r.T} · ${hunt.name} (próxima troca no Nv ${step.b})`);
+    }
     moving = true;
     status(`Nv ${now.level}: viajando para ${hunt.name}…`);
     try {
@@ -261,14 +272,26 @@
       const q = JSON.parse(document.documentElement.dataset.pbAfkRoute || '{}');
       const r = compute(q);
       if (r.error) return finish(r.error);
-      afkPlan = { r, mode: q.mode === 'dmg' ? 'dmg' : 'safe' };
-      expected = ''; moving = false; missingSince = 0; lastAfkStatus = '';
+      afkPlan = { r, q: { pokemon: q.pokemon, level: q.level, target: q.target }, mode: q.mode === 'dmg' ? 'dmg' : 'safe' };
+      savedAfk = null; resuming = false;
+      expected = ''; moving = false; missingSince = 0; lastAfkStatus = ''; lastHunt = '';
       clearInterval(afkTimer);
       afkTimer = setInterval(afkTick, 15000); // reserva para quando a janela do jogo voltar ao primeiro plano
       afkTick();
     } catch (e) { finish(`Não consegui iniciar a rota: ${e.message}`); }
   });
-  window.addEventListener('pb:afk-off', () => { clearInterval(afkTimer); afkTimer = 0; afkPlan = null; expected = ''; });
+  window.addEventListener('pb:afk-off', () => { clearInterval(afkTimer); afkTimer = 0; afkPlan = null; expected = ''; forgetAfk(); });
+  window.addEventListener('pb:afk-pause', () => { clearInterval(afkTimer); afkTimer = 0; afkPlan = null; expected = ''; });
+  setInterval(() => {
+    if (!savedAfk?.hunt || afkPlan || resuming) return;
+    const now = current();
+    if (!now.level || !now.location) return;
+    if (now.location !== norm(savedAfk.hunt) || now.name !== savedAfk.name) { forgetAfk(); return; }
+    if (!cached(CREATURES)?.creatures || !cached(MARKERS)?.hunts) return;
+    resuming = true;
+    document.documentElement.dataset.pbAfkStart = JSON.stringify({ route: savedAfk.route, mode: savedAfk.mode });
+    window.dispatchEvent(new Event('pb:afk-start'));
+  }, 2000);
   window.__pbRouteAfkTick = afkTick; // o processo principal consulta a cada 5 s mesmo com o painel oculto
   window.__pbRouteCompute = compute;  // para testes
 })();
