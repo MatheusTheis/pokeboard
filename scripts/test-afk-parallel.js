@@ -17,10 +17,11 @@ const webContents = [0, 1].map(i => ({
 }));
 const win = { webContents: { send(name, value) { events.push({ i: 'shell', name, value }); } } };
 const sessions = new Map();
+const accountSlots = [0, 2]; // Conta 2 foi fechada; a Conta 3 não muda de identidade.
 const ctx = vm.createContext({
   ipcMain: { on(name, fn) { handlers[name] = fn; } },
-  afkSessions: sessions, views: webContents.map(wc => ({ webContents: wc })), win,
-  viewIndex: e => webContents.indexOf(e.sender), cleanRoute: x => x,
+  afkSessions: sessions, views: webContents.map((wc, i) => ({ slot: accountSlots[i], webContents: wc })), win,
+  viewSlot: e => accountSlots[webContents.indexOf(e.sender)], indexOfSlot: slot => accountSlots.indexOf(slot), cleanRoute: x => x,
   layout() { layouts++; },
   setInterval(fn) { const id = nextPoll++; polls.set(id, fn); return id; },
   clearInterval(id) { polls.delete(id); },
@@ -36,7 +37,7 @@ for (const poll of polls.values()) poll();
 assert.deepEqual(ticks, [1, 1]);
 
 handlers['pb:afk-stop']({ sender: win.webContents }, 0);
-assert.deepEqual([...sessions.keys()], [1]);
+assert.deepEqual([...sessions.keys()], [2]);
 assert.equal(polls.size, 1);
 assert.equal(events.filter(e => e.name === 'pb:afk-off' && e.i === 1).length, 0);
 for (const poll of polls.values()) poll();
@@ -45,6 +46,6 @@ assert.deepEqual(ticks, [1, 2], 'segunda rota continua consultando o nível');
 handlers['pb:afk-done']({ sender: webContents[1] }, 'Alvo alcançado');
 assert.equal(sessions.size, 0);
 assert.equal(polls.size, 0);
-assert.equal(events.at(-1).value.account, 1);
+assert.equal(events.at(-1).value.account, 2);
 assert.ok(layouts >= 4);
 console.log('ok rotas AFK simultâneas e parada independente');

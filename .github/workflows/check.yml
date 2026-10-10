@@ -18,4 +18,5 @@ jobs:
       - run: node scripts/test-route-afk.js
       - run: node scripts/test-afk-isolation.js
       - run: node scripts/test-afk-parallel.js
+      - run: node scripts/test-account-close.js
       - run: node scripts/test-prestige-auto.js

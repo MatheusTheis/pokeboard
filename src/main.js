@@ -1,5 +1,5 @@
 // Processo principal: janela do board + 4 painéis do jogo, cada um com sessão própria.
-const { app, BrowserWindow, WebContentsView, Menu, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, dialog, ipcMain, safeStorage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { createRecorder } = require('./recorder');
@@ -92,6 +92,7 @@ const themeKeys = [];  // chaves dos CSS inseridos em cada painel, para trocar s
 const MAX_ACCOUNTS = 4;
 let state = {
   accountCount: 2,     // quantas contas abrir (1 a 4). Mude aqui ou em board.json.
+  accountSlots: [0, 1], // IDs fixos das sessões abertas, na ordem visual
   accounts: [1, 2, 3, 4].map(n => ({ name: `Conta ${n}` })),
   layout: 'grid',      // 'grid' (tela dividida) | 'focus' (1 painel grande, os outros em segundo plano)
   focus: 0,
@@ -136,8 +137,12 @@ function loadState() {
   try { saved = JSON.parse(fs.readFileSync(STATE_PATH(), 'utf8')) || {}; } catch { /* primeira execução */ }
   // board.json pode ter sido editado à mão: valida cada campo em vez de confiar no arquivo.
   const names = Array.isArray(saved.accounts) ? saved.accounts : [];
+  const legacyCount = Math.min(MAX_ACCOUNTS, Math.max(1, Math.floor(Number(saved.accountCount)) || 2));
+  const slots = Array.isArray(saved.accountSlots)
+    ? [...new Set(saved.accountSlots.filter(n => Number.isInteger(n) && n >= 0 && n < MAX_ACCOUNTS))].slice(0, MAX_ACCOUNTS) : [];
   state = {
-    accountCount: Math.min(MAX_ACCOUNTS, Math.max(1, Math.floor(Number(saved.accountCount)) || 2)),
+    accountCount: slots.length || legacyCount,
+    accountSlots: slots.length ? slots : Array.from({ length: legacyCount }, (_, i) => i),
     accounts: [0, 1, 2, 3].map(i => ({ name: String(names[i]?.name || '').trim().slice(0, 24) || `Conta ${i + 1}` })),
     layout: saved.layout === 'focus' ? 'focus' : 'grid',
     focus: Math.max(0, Math.floor(Number(saved.focus)) || 0),
@@ -148,6 +153,8 @@ function loadState() {
     engine,
   };
 }
+const slotAt = i => state.accountSlots[i];
+const indexOfSlot = slot => state.accountSlots.indexOf(slot);
 const clampAdjust = a => Math.min(5, Math.max(0.2, a));
 // Só nomes simples (vão para dentro de um seletor CSS), sem repetição.
 const cleanDockOrder = a => Array.isArray(a)
@@ -168,19 +175,22 @@ function saveState() {
 // ---------- CSS dos painéis (tokens, visual do jogo, tema), reaplicado sozinho ao salvar ----------
 const themeQueue = [];  // uma fila por painel: dom-ready e o watcher podem disparar juntos e duplicar o CSS
 function applyTheme(i) {
-  themeQueue[i] = (themeQueue[i] || Promise.resolve()).then(() => applyThemeNow(i)).catch(e => console.error('[PokeBoard] tema', e));
-  return themeQueue[i];
+  const view = views[i], slot = view?.slot;
+  if (slot === undefined) return Promise.resolve();
+  themeQueue[slot] = (themeQueue[slot] || Promise.resolve()).then(() => applyThemeNow(view)).catch(e => console.error('[PokeBoard] tema', e));
+  return themeQueue[slot];
 }
-async function applyThemeNow(i) {
-  const wc = views[i]?.webContents;
-  if (!wc || wc.isDestroyed()) return;
-  for (const key of themeKeys[i] || []) { try { await wc.removeInsertedCSS(key); } catch {} }
-  themeKeys[i] = [];
+async function applyThemeNow(view) {
+  const wc = view.webContents, slot = view.slot;
+  if (!views.includes(view) || wc.isDestroyed()) return;
+  for (const key of themeKeys[slot] || []) { try { await wc.removeInsertedCSS(key); } catch {} }
+  themeKeys[slot] = [];
   for (const src of PANEL_CSS) {
+    if (!views.includes(view) || wc.isDestroyed()) return;
     if (!state.skin && SKIN_CSS.has(src)) continue;
     let css;
     try { css = typeof src === 'function' ? src() : fs.readFileSync(src, 'utf8'); } catch { continue; }
-    if (css) themeKeys[i].push(await wc.insertCSS(css, { cssOrigin: 'author' }));
+    if (css) themeKeys[slot].push(await wc.insertCSS(css, { cssOrigin: 'author' }));
   }
 }
 function watchTheme() {
@@ -217,7 +227,7 @@ function computeCells() {
 }
 // Zoom final do painel i numa célula: automático (pelo tamanho) × ajuste da conta, em passos de 5%.
 const autoZoom = c => Math.min(1, c.w / GAME_MIN_W, (c.h - CELL_HEADER_H) / GAME_MIN_H);
-const zoomFor = (i, c) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(autoZoom(c) * state.zoomAdjust[i] / ZOOM_STEP) * ZOOM_STEP));
+const zoomFor = (i, c) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(autoZoom(c) * state.zoomAdjust[slotAt(i)] / ZOOM_STEP) * ZOOM_STEP));
 const lastCells = [];
 
 function applyZoom(i) {
@@ -230,11 +240,12 @@ function layout() {
   if (!win) return;
   const cells = computeCells();
   cells.forEach((c, i) => {
-    c.afkSlot = c.visible && afkSessions.has(i);
+    c.slot = slotAt(i);
+    c.afkSlot = c.visible && afkSessions.has(c.slot);
     if (c.afkSlot) c.visible = false; // somente esta conta deixa de desenhar
     // Painel escondido mantém o zoom que tinha: recalcular ali só faria o jogo redesenhar à toa.
     c.zoom = c.visible ? zoomFor(i, c) : (lastCells[i]?.zoom ?? 1);
-    c.autoZoom = state.zoomAdjust[i] === 1;
+    c.autoZoom = state.zoomAdjust[c.slot] === 1;
     lastCells[i] = c;
     views[i].setVisible(c.visible);
     if (c.visible) { views[i].setBounds({ x: c.x, y: c.y + CELL_HEADER_H, width: c.w, height: Math.max(0, c.h - CELL_HEADER_H) }); applyZoom(i); }
@@ -252,12 +263,13 @@ function setFocus(i) { if (!views[i]) return; state.focus = i; state.layout = 'f
 function stepZoom(i, dir) {
   const c = lastCells[i];
   if (!views[i] || !c) return;
-  if (!dir) state.zoomAdjust[i] = 1;
+  const slot = slotAt(i);
+  if (!dir) state.zoomAdjust[slot] = 1;
   else {
     const target = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round((c.zoom + dir * ZOOM_STEP) / ZOOM_STEP) * ZOOM_STEP));
     const adj = target / autoZoom(c);
     // Perto de 1 vira automático de novo, para não ficar preso num ajuste de 0,99.
-    state.zoomAdjust[i] = Math.abs(adj - 1) < 0.01 ? 1 : clampAdjust(adj);
+    state.zoomAdjust[slot] = Math.abs(adj - 1) < 0.01 ? 1 : clampAdjust(adj);
   }
   saveState(); layout();
 }
@@ -266,9 +278,9 @@ function stepZoom(i, dir) {
 // Vale no shell e em cada painel; no shell, o zoom age sobre a conta em foco.
 // Alt fica de fora porque AltGr chega como Ctrl+Alt no Windows.
 function handleShortcut(e, input, i = state.layout === 'focus' ? state.focus : -1, fromGame = false) {
-  if (fromGame && afkSessions.has(i)) { e.preventDefault(); return; }
+  if (fromGame && afkSessions.has(slotAt(i))) { e.preventDefault(); return; }
   if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
-  if (/^[1-9]$/.test(input.key) && +input.key <= views.length) { setFocus(+input.key - 1); e.preventDefault(); }
+  if (/^[1-9]$/.test(input.key) && indexOfSlot(+input.key - 1) >= 0) { setFocus(indexOfSlot(+input.key - 1)); e.preventDefault(); }
   else if (input.key === '0') { setLayout('grid'); e.preventDefault(); }
   else if (i >= 0 && (input.key === '=' || input.key === '+')) { stepZoom(i, 1); e.preventDefault(); }
   else if (i >= 0 && input.key === '-') { stepZoom(i, -1); e.preventDefault(); }
@@ -288,10 +300,10 @@ function debugRequest(i, d) {
 }
 
 // ---------- painéis ----------
-function createView(i) {
+function createView(slot) {
   const view = new WebContentsView({
     webPreferences: {
-      partition: `persist:conta${i + 1}`,   // cookies e login separados por conta, salvos entre execuções
+      partition: `persist:conta${slot + 1}`,   // cookies e login separados por conta, salvos entre execuções
       preload: path.join(__dirname, 'preload-game.js'),
       contextIsolation: true,
       sandbox: true,
@@ -299,6 +311,7 @@ function createView(i) {
       spellcheck: false,  // sem corretor: não carrega dicionário em cada conta
     },
   });
+  view.slot = slot;
   const wc = view.webContents;
 
   // Links externos (Discord, Instagram) abrem no navegador, não dentro do painel.
@@ -308,28 +321,28 @@ function createView(i) {
     if (/^https?:\/\//i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  wc.on('dom-ready', () => applyTheme(i));
-  wc.on('before-input-event', (e, input) => handleShortcut(e, input, i, true));
-  wc.on('focus', () => { lastFocused = i; });  // conta da Rota de treino na grade
+  wc.on('dom-ready', () => { const i = indexOfSlot(slot); if (i >= 0) applyTheme(i); });
+  wc.on('before-input-event', (e, input) => handleShortcut(e, input, indexOfSlot(slot), true));
+  wc.on('focus', () => { const i = indexOfSlot(slot); if (i >= 0) lastFocused = i; });  // conta da Rota de treino na grade
   // Ctrl + roda do mouse: o Electron só avisa, quem aplica o zoom somos nós.
-  wc.on('zoom-changed', (_, dir) => stepZoom(i, dir === 'in' ? 1 : -1));
+  wc.on('zoom-changed', (_, dir) => stepZoom(indexOfSlot(slot), dir === 'in' ? 1 : -1));
   // A página nova pode voltar ao zoom padrão: reaplica o do painel.
-  wc.on('did-navigate', () => applyZoom(i));
-  wc.on('dom-ready', () => applyZoom(i));
-  wc.on('did-start-navigation', () => { if (afkSessions.has(i)) stopAfk(i, 'Painel recarregado; modo AFK encerrado.'); });
-  wc.on('render-process-gone', () => { if (afkSessions.has(i)) stopAfk(i, 'Painel interrompido; modo AFK encerrado.'); });
+  wc.on('did-navigate', () => applyZoom(indexOfSlot(slot)));
+  wc.on('dom-ready', () => applyZoom(indexOfSlot(slot)));
+  wc.on('did-start-navigation', () => { if (afkSessions.has(slot)) stopAfk(slot, 'Painel recarregado; modo AFK encerrado.'); });
+  wc.on('render-process-gone', () => { if (afkSessions.has(slot)) stopAfk(slot, 'Painel interrompido; modo AFK encerrado.'); });
 
   // PB_DEBUG=1 repete no terminal os avisos e erros do console do painel (para testar a Fase 0).
   // Ignora iframes de terceiros (ex.: o captcha da Cloudflare no login), que só fazem barulho.
   if (process.env.PB_DEBUG) wc.on('console-message', e => {
     if (e.level !== 'warning' && e.level !== 'error') return;
     if (/^https?:/.test(e.sourceId) && !isGameUrl(e.sourceId)) return;
-    console.log(`[conta${i + 1}] ${e.level}: ${e.message} (${e.sourceId}:${e.lineNumber})`);
+    console.log(`[conta${slot + 1}] ${e.level}: ${e.message} (${e.sourceId}:${e.lineNumber})`);
   });
-  if (process.env.PB_DEBUG) wc.on('did-navigate', (_, url, code) => console.log(`[conta${i + 1}] navegou: ${url} (${code})`));
+  if (process.env.PB_DEBUG) wc.on('did-navigate', (_, url, code) => console.log(`[conta${slot + 1}] navegou: ${url} (${code})`));
   // Só um listener por evento em cada sessão: o log do PB_DEBUG e o gravador dividem o mesmo.
   if (process.env.PB_DEBUG || process.env.PB_RECORD) {
-    const done = d => { debugRequest(i, d); recorder?.onRequest(i, d); };
+    const done = d => { debugRequest(slot, d); const i = indexOfSlot(slot); if (i >= 0) recorder?.onRequest(i, d); };
     wc.session.webRequest.onCompleted(done);
     wc.session.webRequest.onErrorOccurred(done);
   }
@@ -347,27 +360,64 @@ ipcMain.on('pb:inject-source', (e, name) => {
 ipcMain.handle('pb:get-state', () => ({ ...state, accountCount: views.length }));
 ipcMain.on('pb:add-account', e => {
   if (e.sender !== win?.webContents || views.length >= MAX_ACCOUNTS) return;
-  const i = views.length;
-  views.push(createView(i));
+  const slot = [0, 1, 2, 3].find(n => !state.accountSlots.includes(n));
+  const pos = state.accountSlots.findIndex(n => n > slot);
+  const i = pos < 0 ? views.length : pos;
+  state.accountSlots.splice(i, 0, slot);
+  views.splice(i, 0, createView(slot));
+  if (state.focus >= i) state.focus++;
+  if (lastFocused >= i) lastFocused++;
   state.accountCount = views.length;
   state.layout = 'grid';
   saveState();
   layout();
+});
+// Fechar uma aba preserva o ID da sessão. Fechar a Conta 2 nunca transforma a Conta 3 em Conta 2.
+function closeAccount(slot) {
+  const i = indexOfSlot(slot);
+  if (i < 0 || views.length <= 1) return;
+  stopAfk(slot);
+  const [view] = views.splice(i, 1);
+  state.accountSlots.splice(i, 1);
+  state.accountCount = views.length;
+  if (state.focus >= i) state.focus = Math.max(0, state.focus - (state.focus > i ? 1 : 0));
+  if (state.focus >= views.length) state.focus = views.length - 1;
+  if (lastFocused >= i) lastFocused = Math.max(0, lastFocused - (lastFocused > i ? 1 : 0));
+  if (lastFocused >= views.length) lastFocused = views.length - 1;
+  win.contentView.removeChildView(view);
+  view.webContents.close();
+  themeKeys[slot] = [];
+  loginRestored.delete(slot);
+  saveState();
+  layout();
+}
+ipcMain.on('pb:account-menu', (e, slot) => {
+  if (e.sender !== win?.webContents || !Number.isInteger(slot) || indexOfSlot(slot) < 0) return;
+  Menu.buildFromTemplate([{ label: 'Fechar aba', enabled: views.length > 1, click: async () => {
+    const name = state.accounts[slot].name;
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question', title: 'Fechar aba', message: `Fechar a aba ${name}?`,
+      detail: 'O login salvo desta conta será mantido para quando você a abrir novamente.',
+      buttons: ['Cancelar', 'Fechar aba'], defaultId: 0, cancelId: 0, noLink: true,
+    });
+    if (response === 1) closeAccount(slot);
+  } }]).popup({ window: win });
 });
 
 // Sessão salva por conta (ver preload-game.js). Criptografada com o usuário do Windows (DPAPI);
 // sem criptografia disponível, não salva nada em texto puro.
 const LOGIN_PATH = i => path.join(app.getPath('userData'), `sessao-conta${i + 1}.bin`);
 const viewIndex = e => views.findIndex(v => v.webContents.id === e.sender.id);
+const viewSlot = e => slotAt(viewIndex(e));
 const loginLog = (i, msg) => process.env.PB_DEBUG && console.log(`[conta${i + 1}] login: ${msg}`);
 const loginRestored = new Set();  // restaura uma vez por execução: se o jogo recusar a sessão, não insiste
-ipcMain.on('pb:login-trace', (e, msg) => { const i = viewIndex(e); if (i >= 0) loginLog(i, String(msg).slice(0, 2000)); });
+ipcMain.on('pb:login-trace', (e, msg) => { const slot = viewSlot(e); if (slot !== undefined) loginLog(slot, String(msg).slice(0, 2000)); });
 // Não dá para conferir a URL do painel aqui: o preload roda antes de o main registrar a navegação,
 // e na troca de página o frame antigo some antes da mensagem chegar. Quem confere a origem do jogo é o preload.
 // Atenção: a primeira atribuição a e.returnValue já envia a resposta; as seguintes são ignoradas.
-ipcMain.on('pb:login-get', e => { e.returnValue = readSavedSession(viewIndex(e)); });
+ipcMain.on('pb:login-get', e => { e.returnValue = readSavedSession(viewSlot(e)); });
 function readSavedSession(i) {
-  if (i < 0) return null;
+  if (!Number.isInteger(i) || i < 0) return null;
   if (loginRestored.has(i)) { loginLog(i, 'já restaurado nesta execução, não repete'); return null; }
   loginRestored.add(i);
   if (!safeStorage.isEncryptionAvailable()) { loginLog(i, 'criptografia indisponível'); return null; }
@@ -376,8 +426,8 @@ function readSavedSession(i) {
   catch (err) { loginLog(i, `falha ao ler (${err.message})`); return null; }
 }
 ipcMain.on('pb:login-save', (e, value, hasLogin) => {
-  const i = viewIndex(e);
-  if (i < 0) return;
+  const i = viewSlot(e);
+  if (i === undefined) return;
   try {
     if (typeof value !== 'string' || value === '{}') { fs.rmSync(LOGIN_PATH(i), { force: true }); loginLog(i, 'sessão vazia, cópia apagada'); }
     else if (value.length < 1048576 && safeStorage.isEncryptionAvailable()) {
@@ -521,39 +571,40 @@ ipcMain.on('pb:open-iv', e => {
   ivWin.loadFile(path.join(__dirname, 'iv', 'index.html'));
 });
 ipcMain.on('pb:afk-start', (e, request) => {
-  const i = viewIndex(e), clean = cleanRoute(request?.route);
-  if (i < 0 || afkSessions.has(i) || !clean) return;
+  const slot = viewSlot(e), clean = cleanRoute(request?.route);
+  if (slot === undefined || afkSessions.has(slot) || !clean) return;
   const mode = request?.mode === 'dmg' ? 'dmg' : 'safe';
   const session = { route: clean, mode, poll: null };
-  afkSessions.set(i, session);
-  views[i].webContents.send('pb:afk-render', true);
+  afkSessions.set(slot, session);
+  views[indexOfSlot(slot)].webContents.send('pb:afk-render', true);
   layout();
-  win.webContents.send('pb:afk', { active: true, account: i, message: 'Preparando a rota…' });
-  views[i].webContents.send('pb:afk-on', { ...clean, mode });
+  win.webContents.send('pb:afk', { active: true, account: slot, message: 'Preparando a rota…' });
+  views[indexOfSlot(slot)].webContents.send('pb:afk-on', { ...clean, mode });
   session.poll = setInterval(() => {
-    const wc = views[i]?.webContents;
-    if (afkSessions.get(i) !== session || !wc || wc.isDestroyed()) return;
-    wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk(i, 'Não consegui acompanhar o nível da conta.'));
+    const wc = views[indexOfSlot(slot)]?.webContents;
+    if (afkSessions.get(slot) !== session || !wc || wc.isDestroyed()) return;
+    wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk(slot, 'Não consegui acompanhar o nível da conta.'));
   }, 5000);
 });
-function stopAfk(i, message = '') {
-  const session = afkSessions.get(i);
+function stopAfk(slot, message = '') {
+  const session = afkSessions.get(slot);
   if (!session) return;
   clearInterval(session.poll);
-  afkSessions.delete(i);
-  views[i]?.webContents.send('pb:afk-off');
-  views[i]?.webContents.send('pb:afk-render', false);
+  afkSessions.delete(slot);
+  const wc = views[indexOfSlot(slot)]?.webContents;
+  wc?.send('pb:afk-off');
+  wc?.send('pb:afk-render', false);
   layout();
-  win.webContents.send('pb:afk', { active: false, account: i, message });
+  win.webContents.send('pb:afk', { active: false, account: slot, message });
 }
-ipcMain.on('pb:afk-stop', (e, i) => { if (e.sender === win?.webContents && Number.isInteger(i)) stopAfk(i); });
+ipcMain.on('pb:afk-stop', (e, slot) => { if (e.sender === win?.webContents && Number.isInteger(slot)) stopAfk(slot); });
 ipcMain.on('pb:afk-status', (e, message) => {
-  const i = viewIndex(e);
-  if (afkSessions.has(i)) win.webContents.send('pb:afk', {
-    active: true, account: i, message: String(message).slice(0, 180),
+  const slot = viewSlot(e);
+  if (afkSessions.has(slot)) win.webContents.send('pb:afk', {
+    active: true, account: slot, message: String(message).slice(0, 180),
   });
 });
-ipcMain.on('pb:afk-done', (e, message) => { const i = viewIndex(e); if (afkSessions.has(i)) stopAfk(i, String(message).slice(0, 180)); });
+ipcMain.on('pb:afk-done', (e, message) => { const slot = viewSlot(e); if (afkSessions.has(slot)) stopAfk(slot, String(message).slice(0, 180)); });
 ipcMain.handle('pb:iv-ocr', async (e, dataUrl) => {
   if (e.sender !== ivWin?.webContents || typeof dataUrl !== 'string' || dataUrl.length > 16_000_000) throw Error('Print inválido ou grande demais (máximo 12 MB).');
   const match = dataUrl.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
@@ -564,8 +615,9 @@ ipcMain.handle('pb:iv-ocr', async (e, dataUrl) => {
   finally { await worker.terminate(); }
 });
 ipcMain.on('pb:rename', (_, i, name) => {
-  if (!state.accounts[i]) return;
-  state.accounts[i].name = String(name).trim().slice(0, 24) || `Conta ${i + 1}`;
+  const slot = slotAt(i);
+  if (slot === undefined) return;
+  state.accounts[slot].name = String(name).trim().slice(0, 24) || `Conta ${slot + 1}`;
   saveState(); layout();
 });
 
@@ -601,7 +653,7 @@ app.whenReady().then(() => {
   });
   win.loadFile(path.join(__dirname, 'shell', 'index.html'));
   if (state.focus >= state.accountCount) state.focus = 0;
-  for (let i = 0; i < state.accountCount; i++) views.push(createView(i));
+  for (const slot of state.accountSlots) views.push(createView(slot));
   // 'resize' nem sempre dispara ao maximizar ou entrar em tela cheia.
   for (const ev of ['resize', 'maximize', 'unmaximize', 'restore', 'enter-full-screen', 'leave-full-screen']) win.on(ev, layout);
   win.webContents.on('did-finish-load', layout);

@@ -15,10 +15,11 @@ const views = [0, 1].map(i => ({
   setVisible(on) { visible[i] = on; }, setBounds() {},
   webContents: { isDestroyed: () => false, getZoomFactor: () => 1, setZoomFactor() {}, send() {}, focus() {} },
 }));
-const state = { layout: 'grid', focus: 0, zoomAdjust: [1, 1], accounts: [{}, {}] };
+const state = { layout: 'grid', focus: 0, zoomAdjust: [1, 1], accounts: [{}, {}], accountSlots: [0, 1] };
 const ctx = vm.createContext({
   win: { getContentSize: () => [1500, 900], webContents: { send(_, data) { events.push(data); } } },
-  views, state, afkSessions: new Map([[0, {}], [1, {}]]), SIDEBAR_W: 0, TOPBAR_H: 44, GAP: 4,
+  views, state, slotAt: i => state.accountSlots[i], indexOfSlot: slot => state.accountSlots.indexOf(slot),
+  afkSessions: new Map([[0, {}], [1, {}]]), SIDEBAR_W: 0, TOPBAR_H: 44, GAP: 4,
   CELL_HEADER_H: 24, GAME_MIN_W: 1200, GAME_MIN_H: 650, ZOOM_MAX: 2, ZOOM_MIN: 0.25,
   ZOOM_STEP: 0.05, saveState() {},
 });

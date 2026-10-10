@@ -22,19 +22,21 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<'
 function renderAccounts(state) {
   const nav = $('#accounts');
   nav.innerHTML = '';
-  state.accounts.slice(0, state.accountCount).forEach((a, i) => {
+  state.accountSlots.forEach((slot, i) => {
+    const a = state.accounts[slot];
     const b = document.createElement('button');
     b.className = 'acc';
-    b.title = `${a.name}: ampliar (Ctrl+${i + 1}) · duplo clique renomeia`;
+    b.title = `${a.name}: ampliar (Ctrl+${slot + 1}) · botão direito para fechar aba`;
     b.setAttribute('aria-current', String(state.layout === 'focus' && state.focus === i));
-    b.innerHTML = `<span class="dot" style="background:${COLORS[i]}"></span><span class="name">${esc(a.name)}</span><span class="key">${i + 1}</span>`;
+    b.innerHTML = `<span class="dot" style="background:${COLORS[slot]}"></span><span class="name">${esc(a.name)}</span><span class="key">${slot + 1}</span>`;
     b.onclick = () => board.focus(i);
+    b.oncontextmenu = e => { e.preventDefault(); board.accountMenu(slot); };
     b.ondblclick = e => { e.preventDefault(); startRename(b, i, a.name); };
     nav.append(b);
   });
   const add = $('#btnAddAccount');
   add.disabled = state.accountCount >= 4;
-  add.title = add.disabled ? 'Limite de 4 contas atingido' : `Adicionar Conta ${state.accountCount + 1}`;
+  add.title = add.disabled ? 'Limite de 4 contas atingido' : 'Reabrir uma conta livre';
   document.querySelectorAll('[data-layout]').forEach(btn =>
     btn.setAttribute('aria-pressed', String(btn.dataset.layout === state.layout)));
   // "Original" pressionado = design original do jogo (visual PokeBoard desligado).
@@ -70,9 +72,9 @@ function renderCells({ cells, state }) {
     const pct = `${Math.round(c.zoom * 100)}%`;
     const zoomTip = c.autoZoom ? `Zoom automático (${pct}), ajustado ao tamanho do painel` : `Zoom ${pct} ajustado à mão. Clique para voltar ao automático`;
     const layoutBtn = state.layout === 'grid'
-      ? `<button class="ico" data-a="focus" title="Ampliar esta conta (Ctrl+${i + 1})" aria-label="Ampliar esta conta">⤢</button>`
+      ? `<button class="ico" data-a="focus" title="Ampliar esta conta (Ctrl+${c.slot + 1})" aria-label="Ampliar esta conta">⤢</button>`
       : `<button class="ico" data-a="grid" title="Voltar à tela dividida (Ctrl+0)" aria-label="Voltar à tela dividida">▦</button>`;
-    h.innerHTML = `<span class="dot" style="background:${COLORS[i]}"></span><span class="name">${esc(state.accounts[i].name)}</span>
+    h.innerHTML = `<span class="dot" style="background:${COLORS[c.slot]}"></span><span class="name">${esc(state.accounts[c.slot].name)}</span>
       <span class="zoom" role="group" aria-label="Zoom do painel">
         <button class="ico" data-a="zoom-out" aria-label="Diminuir zoom" title="Diminuir zoom (Ctrl+-)">−</button>
         <button class="ico zoom-val${c.autoZoom ? ' is-auto' : ''}" data-a="zoom-auto" aria-label="${zoomTip}" title="${zoomTip}">${pct}</button>
@@ -136,7 +138,7 @@ function renderAfk() {
     chip.title = `Encerrar somente o AFK da conta ${i + 1}`;
     chip.onclick = () => board.stopAfk(i);
     menu.append(chip);
-    const cell = afkCells[i];
+    const cell = afkCells.find(c => c.slot === i);
     if (!cell?.afkSlot) continue;
     const lock = document.createElement('div');
     lock.className = 'afk-lock';
@@ -188,12 +190,12 @@ board.onAfk(({ active, account, message }) => {
 // abre a rota otimizada deles já no Pokémon (main.js).
 const routeBox = $('#routeBox'), routeName = $('#routeName'), routeLevel = $('#routeLevel'), routeTarget = $('#routeTarget');
 let routeParty = [], routeEvo = {};
-let routeAccount = 0;
-const routeKey = i => `pb:route:last:${i}`;
+let routeAccount = 0, routeSlot = 0;
+const routeKey = slot => `pb:route:last:${slot}`;
 const savedRoute = i => { try { return JSON.parse(localStorage.getItem(routeKey(i)) || 'null'); } catch { return null; } };
 const rememberRoute = () => {
   const q = routeQuery();
-  try { localStorage.setItem(routeKey(routeAccount), JSON.stringify(q)); } catch {}
+  try { localStorage.setItem(routeKey(routeSlot), JSON.stringify(q)); } catch {}
   return q;
 };
 // Alvo sugerido: o nível da próxima evolução, se ainda não chegou nele; senão, +10.
@@ -205,12 +207,13 @@ $('#btnRoute').onclick = async () => {
   $('#btnRoute').setAttribute('aria-expanded', 'true');
   const info = await board.routeInfo().catch(() => null);
   routeAccount = info?.account ?? 0;
+  routeSlot = current?.accountSlots?.[routeAccount] ?? routeAccount;
   routeParty = info?.party || [];
   routeEvo = info?.evo || {};
   const team = routeParty.map(p => `<option value="${esc(p.name)}">Lv.${p.level}${p.active ? ' · ativo' : ''}</option>`);
   const rest = (info?.names || []).filter(n => !routeParty.some(p => p.name === n)).map(n => `<option value="${esc(n)}"></option>`);
   $('#routeNames').innerHTML = team.concat(rest).join('');
-  const previous = savedRoute(routeAccount);
+  const previous = savedRoute(routeSlot);
   const act = routeParty.find(p => p.active) || routeParty[0];
   if (previous?.pokemon) {
     routeName.value = previous.pokemon;
