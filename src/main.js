@@ -338,6 +338,15 @@ ipcMain.on('pb:inject-source', (e, name) => {
   try { e.returnValue = fs.readFileSync(INJECT[name], 'utf8'); } catch { e.returnValue = ''; }
 });
 ipcMain.handle('pb:get-state', () => ({ ...state, accountCount: views.length }));
+ipcMain.on('pb:add-account', e => {
+  if (e.sender !== win?.webContents || views.length >= MAX_ACCOUNTS) return;
+  const i = views.length;
+  views.push(createView(i));
+  state.accountCount = views.length;
+  state.layout = 'grid';
+  saveState();
+  layout();
+});
 
 // Sessão salva por conta (ver preload-game.js). Criptografada com o usuário do Windows (DPAPI);
 // sem criptografia disponível, não salva nada em texto puro.

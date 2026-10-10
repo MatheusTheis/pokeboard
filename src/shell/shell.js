@@ -18,6 +18,9 @@ function renderAccounts(state) {
     b.ondblclick = e => { e.preventDefault(); startRename(b, i, a.name); };
     nav.append(b);
   });
+  const add = $('#btnAddAccount');
+  add.disabled = state.accountCount >= 4;
+  add.title = add.disabled ? 'Limite de 4 contas atingido' : `Adicionar Conta ${state.accountCount + 1}`;
   document.querySelectorAll('[data-layout]').forEach(btn =>
     btn.setAttribute('aria-pressed', String(btn.dataset.layout === state.layout)));
   // "Original" pressionado = design original do jogo (visual PokeBoard desligado).
@@ -102,6 +105,7 @@ board.onMetrics(m => { metrics = m; showMetrics(); });
 board.onLayout(data => { current = data.state; renderAccounts(data.state); renderCells(data); });
 board.getState().then(s => { current = s; renderAccounts(s); });
 document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.setLayout(b.dataset.layout));
+$('#btnAddAccount').onclick = () => board.addAccount();
 $('#btnReloadAll').onclick = () => board.reloadAll();
 $('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
 // ---------- Rota de treino (PIW Tools) ----------

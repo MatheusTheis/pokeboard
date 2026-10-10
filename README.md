@@ -25,7 +25,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 
 | | |
 |---|---|
-| **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
+| **Multicontas** | 2 contas lado a lado (até 4, em grade 2×2), cada painel com sessão e login próprios, salvos entre execuções. **+ Conta** na barra superior adiciona uma conta sem recarregar as existentes. `Ctrl+1/2…` amplia uma conta, `Ctrl+0` volta à grade. |
 | **Rota de treino** | Botão **Rota** na barra vermelha: com o Pokémon ativo da conta em foco já preenchido (ou outro, com nível atual e alvo), abre no jogo uma janela com, para cada faixa de nível, a hunt de **maior dano** e a **mais segura** (Dá/Toma pelos golpes e tipos, nas áreas que o seu nível de treinador já abriu). O botão **PIW Tools** abre a rota otimizada do [PIW Tools](https://piwtools.com.br), de Rakupo / bar, já no Pokémon. |
 | **Economia** | Botão de quadros por segundo na barra vermelha (60 → 30 → 20): o jogo desenha menos, a GPU e o processador trabalham menos; a hunt continua no servidor. Medidor de memória da GPU, do total e de cada conta. |
 | **Zoom por painel** | Cada painel calcula o zoom para o jogo caber; ajuste fino com `−` `+` ou `Ctrl` + roda do mouse, salvo por conta. |
@@ -103,7 +103,7 @@ Se aparecerem partes da tela em branco por um instante, aumente `gpuMemMB`.
 
 ### Quantas contas
 
-O padrão é 2. Para 1 a 4, troque `accountCount` em `%APPDATA%\poke-board\board.json` e reabra o app.
+O padrão é 2. Clique em **+ Conta** na barra superior para abrir a próxima conta, até 4. O número fica salvo para a próxima abertura. Para iniciar com menos contas, altere `accountCount` em `%APPDATA%\poke-board\board.json` com o app fechado.
 
 ### Personalizar o visual
 

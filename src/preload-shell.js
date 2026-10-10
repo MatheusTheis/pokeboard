@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('board', {
   onLayout: cb => ipcRenderer.on('pb:layout', (_, data) => cb(data)),
   setLayout: l => ipcRenderer.send('pb:set-layout', l),
   focus: i => ipcRenderer.send('pb:focus', i),
+  addAccount: () => ipcRenderer.send('pb:add-account'),
   zoom: (i, dir) => ipcRenderer.send('pb:zoom', i, dir),  // dir: 'in' | 'out' | 'auto'
   reload: i => ipcRenderer.send('pb:reload', i),
   reloadAll: () => ipcRenderer.send('pb:reload-all'),

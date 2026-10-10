@@ -48,7 +48,9 @@ button { font: inherit; }
 .topbar .pr-btn { padding-top: 1px; padding-bottom: 1px; font-size: 14px; }
 
 /* Contas: teclas escuras na carcaça; a em foco ganha moldura amarela. */
-.accounts { display: flex; gap: 6px; min-width: 0; overflow: hidden; }
+.accounts { display: flex; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.accounts::-webkit-scrollbar { display: none; }
+#btnAddAccount { flex: none; white-space: nowrap; }
 .acc {
   display: flex;
   align-items: center;
@@ -63,6 +65,7 @@ button { font: inherit; }
   font: 600 14px/18px var(--pb-font-body);
   cursor: pointer;
   max-width: 180px;
+  flex: none;
 }
 .acc:hover { background: var(--pb-surface-raised); }
 .acc[aria-current="true"] { background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus), 3px 3px 0 0 var(--pb-shadow-ink); }
