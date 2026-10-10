@@ -6,7 +6,7 @@ const path = require('path');
 
 const listeners = {};
 const elements = {};
-let tick, place = 'Cidade', flash = '', kills = 0, professionOpen = true;
+let tick, place = 'Cidade', flash = '', kills = 0, professionOpen = true, viaCity = false;
 let dexWindow = null, dexOpens = 0, dexCloses = 0;
 const trips = [];
 const head = { after(...nodes) { for (const n of nodes) { n.parentNode = task; task[n.id] = n; } } };
@@ -56,7 +56,12 @@ const window = {
   },
   __pbDexHunts: {
     of(id) { return [{ name: id === 1 ? 'Alpha' : 'Beta', level: id === 1 ? 10 : 20, area: 'kanto' }]; },
-    async travel(h) { trips.push(h.name); place = h.name; return true; },
+    async travel(h) {
+      trips.push(h.name);
+      if (viaCity) { place = 'Passagem'; setTimeout(() => { place = h.name; }, 50); }
+      else place = h.name;
+      return true;
+    },
   },
   addEventListener(type, fn) { listeners[type] = fn; },
 };
@@ -92,8 +97,11 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   assert.match(game.panel.querySelector('.pb-prestige-count').textContent, /Faltam 2 espécies/);
   assert.equal(JSON.parse(saved.get('pb:prestige:auto:v1')).hunt, 'Alpha');
   flash = ''; tick();
-  flash = '🎉 Alpha capturado com Poké Ball!'; tick(); await wait(1100);
+  viaCity = true;
+  flash = '🎉 Alpha capturado com Poké Ball!'; tick(); await wait(0); tick(); await wait(1100);
   assert.deepEqual(trips, ['Alpha', 'Beta']);
+  assert.equal(button.getAttribute('aria-pressed'), 'true', 'área intermediária da viagem não para a automação');
+  viaCity = false;
   assert.equal(dexOpens, 1, 'troca de hunt com a Pokédex fechada');
   flash = '🎉 Beta capturado com Poké Ball!'; tick(); await wait(1100);
   assert.deepEqual(trips, ['Alpha', 'Beta', 'Alpha']);

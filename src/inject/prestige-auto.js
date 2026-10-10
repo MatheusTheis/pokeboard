@@ -6,6 +6,7 @@
   const PROF = '/api/game/professions', DEX = '/api/game/pokedex';
   const CREATURES = '/game/creatures.json', MARKERS = '/api/game/map-markers';
   const SAVE_KEY = 'pb:prestige:auto:v1';
+  const TRAVEL_TIMEOUT_MS = 30000;
   const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const data = p => window.__pbCache?.[p]?.data;
   const currentHunt = () => norm((document.querySelector('.phud-tloc')?.textContent || '').split('·').pop());
@@ -14,7 +15,7 @@
   const rank = () => data(PROF)?.nextStep;
   let running = false, busy = false, target = null, lastFlash = '', lastKills = null;
   let speciesStart = 0, extraKills = Object.create(null), caughtThisRun = new Set();
-  let expectedUntil = 0, previousHunt = '';
+  let expectedUntil = 0;
   let lastSavedKey = '', lastSavedAt = 0;
   let lastLoad = 0, creatureLoading = false;
   let autoDexWindow = null, autoDexPending = 0;
@@ -69,7 +70,7 @@
   }
   function stop(message = 'Parado.') {
     running = false; busy = false; target = null; lastKills = null;
-    expectedUntil = 0; previousHunt = ''; saved = null;
+    expectedUntil = 0; saved = null;
     lastSavedKey = ''; lastSavedAt = 0;
     try { localStorage.removeItem(SAVE_KEY); } catch {}
     button.textContent = 'Iniciar rota de Prestígio';
@@ -177,9 +178,9 @@
       if (before !== norm(next.h.name)) {
         const ok = await window.__pbDexHunts?.travel(next.h);
         if (!ok) { stop(`Não consegui viajar para ${next.h.name}. Abra o mapa e tente de novo.`); return; }
-        previousHunt = before; expectedUntil = Date.now() + 20000;
+        expectedUntil = Date.now() + TRAVEL_TIMEOUT_MS;
       } else {
-        previousHunt = ''; expectedUntil = 0;
+        expectedUntil = 0;
       }
       if (!running) return;
       target = next;
@@ -233,8 +234,10 @@
     if (!running || !target || busy) return;
     const here = currentHunt(), wanted = norm(target.h.name);
     if (!here) return; // a HUD pode sumir brevemente durante a navegação
-    if (here === wanted) { expectedUntil = 0; previousHunt = ''; remember(); return; }
-    if (expectedUntil && here === previousHunt && Date.now() < expectedUntil) return;
+    if (here === wanted) { expectedUntil = 0; remember(); return; }
+    // O jogo pode passar por uma cidade ou tela de carregamento antes da hunt escolhida.
+    if (expectedUntil && Date.now() < expectedUntil) return;
+    if (expectedUntil) { stop(`Não chegou à hunt ${target.h.name}. Automação parada.`); return; }
     stop(`Saiu da hunt ${target.h.name}. Automação parada.`);
   }
   function restore() {
