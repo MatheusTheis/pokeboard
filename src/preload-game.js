@@ -70,6 +70,20 @@ ipcRenderer.on('pb:route-open', (_, q) => {
   document.documentElement.dataset.pbRoute = JSON.stringify(q || {});
   window.dispatchEvent(new Event('pb:route-open'));
 });
+ipcRenderer.on('pb:afk-render', (_, on) => {
+  document.documentElement.toggleAttribute('data-pb-afk', !!on);
+  window.dispatchEvent(new Event(on ? 'pb:afk-lock' : 'pb:afk-unlock'));
+});
+ipcRenderer.on('pb:afk-on', (_, q) => {
+  document.documentElement.dataset.pbAfkRoute = JSON.stringify(q || {});
+  window.dispatchEvent(new Event('pb:afk-on'));
+});
+ipcRenderer.on('pb:afk-off', () => window.dispatchEvent(new Event('pb:afk-off')));
+window.addEventListener('pb:afk-start', () => {
+  try { ipcRenderer.send('pb:afk-start', JSON.parse(document.documentElement.dataset.pbAfkStart || '{}')); } catch {}
+});
+window.addEventListener('pb:afk-status', () => ipcRenderer.send('pb:afk-status', document.documentElement.dataset.pbAfkStatus || ''));
+window.addEventListener('pb:afk-done', () => ipcRenderer.send('pb:afk-done', document.documentElement.dataset.pbAfkDone || ''));
 window.addEventListener('pb:route-piw', () => {
   try { ipcRenderer.send('pb:open-route', JSON.parse(document.documentElement.dataset.pbRoutePiw || '{}')); } catch {}
 });

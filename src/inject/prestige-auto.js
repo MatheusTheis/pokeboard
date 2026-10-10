@@ -41,6 +41,7 @@
     advance();
   }
   button.addEventListener('click', () => running ? stop() : start());
+  window.addEventListener('pb:afk-lock', () => { if (running) stop('Modo AFK da Rota ativado.'); });
 
   // O jogo traz esses JSON ao abrir as telas. Quando ainda não vieram, o jogador vê o que falta.
   function ready() {

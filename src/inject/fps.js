@@ -43,6 +43,7 @@
   function readFps() {
     let fps = 0;
     try { fps = Number(JSON.parse(document.documentElement?.dataset.pbPrefs || '{}').fps) || 0; } catch {}
+    if (document.documentElement?.hasAttribute('data-pb-afk')) fps = 5;
     interval = fps > 0 ? 1000 / fps : 0;
     if (!interval && queue.size) arm();  // limite desligado: entrega o que estava esperando
   }
@@ -50,7 +51,7 @@
   const watch = () => {
     const r = document.documentElement;
     if (!r) return false;
-    new MutationObserver(readFps).observe(r, { attributes: true, attributeFilter: ['data-pb-prefs'] });
+    new MutationObserver(readFps).observe(r, { attributes: true, attributeFilter: ['data-pb-prefs', 'data-pb-afk'] });
     readFps();
     return true;
   };

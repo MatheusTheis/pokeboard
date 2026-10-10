@@ -84,8 +84,12 @@ const ICON_PATH = path.join(__dirname, '..', 'assets', process.platform === 'win
 process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
 
 let win;
+let ivWin = null;
 let recorder = null;   // gravador do PB_RECORD (recorder.js)
 const views = [];      // um WebContentsView por conta
+let afkSession = null; // temporário: fecha ao desbloquear ou encerrar o app
+let afkPoll = null;
+let afkHiddenWindows = [];
 const themeKeys = [];  // chaves dos CSS inseridos em cada painel, para trocar sem recarregar
 const MAX_ACCOUNTS = 4;
 let state = {
@@ -228,6 +232,7 @@ function layout() {
   if (!win) return;
   const cells = computeCells();
   cells.forEach((c, i) => {
+    if (afkSession) c.visible = false; // sem desenho e sem interação nos painéis enquanto AFK
     // Painel escondido mantém o zoom que tinha: recalcular ali só faria o jogo redesenhar à toa.
     c.zoom = c.visible ? zoomFor(i, c) : (lastCells[i]?.zoom ?? 1);
     c.autoZoom = state.zoomAdjust[i] === 1;
@@ -262,6 +267,7 @@ function stepZoom(i, dir) {
 // Vale no shell e em cada painel; no shell, o zoom age sobre a conta em foco.
 // Alt fica de fora porque AltGr chega como Ctrl+Alt no Windows.
 function handleShortcut(e, input, i = state.layout === 'focus' ? state.focus : -1) {
+  if (afkSession && input.key !== 'Escape') { e.preventDefault(); return; }
   if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return;
   if (/^[1-9]$/.test(input.key) && +input.key <= views.length) { setFocus(+input.key - 1); e.preventDefault(); }
   else if (input.key === '0') { setLayout('grid'); e.preventDefault(); }
@@ -311,6 +317,8 @@ function createView(i) {
   // A página nova pode voltar ao zoom padrão: reaplica o do painel.
   wc.on('did-navigate', () => applyZoom(i));
   wc.on('dom-ready', () => applyZoom(i));
+  wc.on('did-start-navigation', () => { if (afkSession?.account === i) stopAfk('Painel recarregado; modo AFK encerrado.'); });
+  wc.on('render-process-gone', () => { if (afkSession?.account === i) stopAfk('Painel interrompido; modo AFK encerrado.'); });
 
   // PB_DEBUG=1 repete no terminal os avisos e erros do console do painel (para testar a Fase 0).
   // Ignora iframes de terceiros (ex.: o captcha da Cloudflare no login), que só fazem barulho.
@@ -501,6 +509,63 @@ function sendMetrics() {
   });
 }
 ipcMain.on('pb:open-theme', () => shell.openPath(THEME_PATH));
+ipcMain.on('pb:open-iv', e => {
+  if (e.sender !== win?.webContents) return;
+  if (ivWin && !ivWin.isDestroyed()) { ivWin.focus(); return; }
+  ivWin = new BrowserWindow({
+    parent: win, width: 520, height: 690, minWidth: 430, minHeight: 570,
+    title: 'Calculadora de IV · PokeBoard', backgroundColor: '#12161E', icon: ICON_PATH,
+    webPreferences: { preload: path.join(__dirname, 'preload-iv.js'), contextIsolation: true, sandbox: true, spellcheck: false },
+  });
+  ivWin.setMenu(null);
+  ivWin.on('closed', () => { ivWin = null; });
+  ivWin.loadFile(path.join(__dirname, 'iv', 'index.html'));
+});
+ipcMain.on('pb:afk-start', (e, request) => {
+  const i = viewIndex(e), clean = cleanRoute(request?.route);
+  if (i < 0 || afkSession || !clean) return;
+  const mode = request?.mode === 'dmg' ? 'dmg' : 'safe';
+  afkSession = { account: i, route: clean, mode };
+  afkHiddenWindows = [ivWin, routeWin].filter(w => w && !w.isDestroyed() && w.isVisible());
+  afkHiddenWindows.forEach(w => w.hide());
+  views.forEach(v => v.webContents.send('pb:afk-render', true));
+  layout();
+  win.webContents.send('pb:afk', { active: true, account: i, message: 'Preparando a rota…' });
+  views[i].webContents.send('pb:afk-on', { ...clean, mode });
+  afkPoll = setInterval(() => {
+    const wc = views[i]?.webContents;
+    if (afkSession?.account !== i || !wc || wc.isDestroyed()) return;
+    wc.executeJavaScript('window.__pbRouteAfkTick?.()').catch(() => stopAfk('Não consegui acompanhar o nível da conta.'));
+  }, 5000);
+});
+function stopAfk(message = '') {
+  if (!afkSession) return;
+  clearInterval(afkPoll); afkPoll = null;
+  const i = afkSession.account;
+  afkSession = null;
+  views[i]?.webContents.send('pb:afk-off');
+  views.forEach(v => v.webContents.send('pb:afk-render', false));
+  layout();
+  afkHiddenWindows.forEach(w => { if (!w.isDestroyed()) w.show(); });
+  afkHiddenWindows = [];
+  win.webContents.send('pb:afk', { active: false, message });
+}
+ipcMain.on('pb:afk-stop', e => { if (e.sender === win?.webContents) stopAfk(); });
+ipcMain.on('pb:afk-status', (e, message) => {
+  if (viewIndex(e) === afkSession?.account) win.webContents.send('pb:afk', {
+    active: true, account: afkSession.account, message: String(message).slice(0, 180),
+  });
+});
+ipcMain.on('pb:afk-done', (e, message) => { if (viewIndex(e) === afkSession?.account) stopAfk(String(message).slice(0, 180)); });
+ipcMain.handle('pb:iv-ocr', async (e, dataUrl) => {
+  if (e.sender !== ivWin?.webContents || typeof dataUrl !== 'string' || dataUrl.length > 16_000_000) throw Error('Print inválido ou grande demais (máximo 12 MB).');
+  const match = dataUrl.match(/^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw Error('Use uma imagem PNG, JPG ou WebP.');
+  const { createWorker } = require('tesseract.js');
+  const worker = await createWorker('eng', 1, { langPath: require('@tesseract.js-data/eng').langPath, cacheMethod: 'none' });
+  try { return (await worker.recognize(Buffer.from(match[1], 'base64'))).data.text.slice(0, 20000); }
+  finally { await worker.terminate(); }
+});
 ipcMain.on('pb:rename', (_, i, name) => {
   if (!state.accounts[i]) return;
   state.accounts[i].name = String(name).trim().slice(0, 24) || `Conta ${i + 1}`;
@@ -515,7 +580,9 @@ for (const [flag, env] of [['pb-record', 'PB_RECORD'], ['pb-debug', 'PB_DEBUG']]
 // Sem um ID próprio, o Windows agrupa a janela com o ícone padrão do Electron na barra de tarefas.
 if (process.platform === 'win32') app.setAppUserModelId('com.matheustheis.pokeboard');
 
-const firstInstance = app.requestSingleInstanceLock();
+// Jogo falso + pasta temporária: permite testar outra instância sem tocar no PokeBoard que está farmando.
+const isolatedMock = !!process.env.PB_GAME_URL && app.commandLine.hasSwitch('user-data-dir');
+const firstInstance = isolatedMock || app.requestSingleInstanceLock();
 if (!firstInstance) app.quit();
 app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 

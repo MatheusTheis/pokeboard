@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="noite">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob: data:">
+  <title>Calculadora de IV · PokeBoard</title>
+  <link rel="stylesheet" href="../ui/tokens.css">
+  <link rel="stylesheet" href="../ui/retro.css">
+  <link rel="stylesheet" href="iv.css">
+</head>
+<body>
+  <header><span class="lens" aria-hidden="true"></span><div><h1>Calculadora de IV</h1><small>PokeBoard Retro · máximo 192</small></div></header>
+  <main>
+    <section class="screen">
+      <h2>Valores individuais</h2>
+      <p>Digite os seis IVs (0 a 32) ou carregue um print. Confira os números lidos antes de usar o resultado.</p>
+      <div class="stats" id="stats"></div>
+      <div class="result" role="status"><strong id="total">—/192</strong><span id="percent">Preencha os seis valores</span></div>
+      <div class="meter"><i id="fill"></i></div>
+    </section>
+    <section class="screen">
+      <h2>Print do Pokémon</h2>
+      <label class="upload" for="image">Selecionar imagem ou colar com Ctrl+V</label>
+      <input id="image" type="file" accept="image/png,image/jpeg,image/webp">
+      <div id="preview" class="preview">Arraste um print aqui ou cole da área de transferência.</div>
+      <p id="ocrStatus" role="status">O print é processado no seu computador e não fica salvo.</p>
+      <details><summary>Texto reconhecido</summary><pre id="ocrText"></pre></details>
+    </section>
+  </main>
+  <script src="iv.js"></script>
+</body>
+</html>

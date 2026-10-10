@@ -22,5 +22,9 @@
   },
   "devDependencies": {
     "electron": "44.5.1"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
+    "tesseract.js": "^7.0.0"
   }
 }

@@ -108,12 +108,40 @@ document.querySelectorAll('[data-layout]').forEach(b => b.onclick = () => board.
 $('#btnAddAccount').onclick = () => board.addAccount();
 $('#btnReloadAll').onclick = () => board.reloadAll();
 $('#btnSkin').onclick = () => board.setSkin(current?.skin === false);
+$('#btnIv').onclick = () => board.openIv();
+const afkLock = $('#afkLock');
+let afkNoticeTimer = 0;
+board.onAfk(({ active, account, message }) => {
+  afkLock.hidden = !active;
+  if (active) {
+    $('#afkNotice').hidden = true;
+    $('#afkAccount').textContent = `Conta ${account + 1}`;
+    $('#afkStatus').textContent = message || 'Acompanhando o nível…';
+    $('#btnAfkStop').focus();
+  } else if (message) {
+    const note = $('#afkNotice');
+    note.textContent = `AFK encerrado: ${message}`;
+    note.hidden = false;
+    clearTimeout(afkNoticeTimer);
+    afkNoticeTimer = setTimeout(() => { note.hidden = true; }, 9000);
+  }
+});
+$('#btnAfkStop').onclick = () => board.stopAfk();
+document.addEventListener('keydown', e => { if (!afkLock.hidden && e.key === 'Escape') board.stopAfk(); });
 // ---------- Rota de treino (PIW Tools) ----------
 // Formulário compacto na própria barra (abaixo dela é o jogo). Vem preenchido com o Pokémon ativo da conta em foco;
 // a lista sugere primeiro o time dela. "Abrir" mostra a janela de rota no painel da conta (route.js); "PIW Tools"
 // abre a rota otimizada deles já no Pokémon (main.js).
 const routeBox = $('#routeBox'), routeName = $('#routeName'), routeLevel = $('#routeLevel'), routeTarget = $('#routeTarget');
 let routeParty = [], routeEvo = {};
+let routeAccount = 0;
+const routeKey = i => `pb:route:last:${i}`;
+const savedRoute = i => { try { return JSON.parse(localStorage.getItem(routeKey(i)) || 'null'); } catch { return null; } };
+const rememberRoute = () => {
+  const q = routeQuery();
+  try { localStorage.setItem(routeKey(routeAccount), JSON.stringify(q)); } catch {}
+  return q;
+};
 // Alvo sugerido: o nível da próxima evolução, se ainda não chegou nele; senão, +10.
 const suggestTarget = (name, level) => (routeEvo[name] > level ? routeEvo[name] : level + 10);
 function closeRoute() { routeBox.hidden = true; $('#btnRoute').setAttribute('aria-expanded', 'false'); }
@@ -122,13 +150,19 @@ $('#btnRoute').onclick = async () => {
   routeBox.hidden = false;
   $('#btnRoute').setAttribute('aria-expanded', 'true');
   const info = await board.routeInfo().catch(() => null);
+  routeAccount = info?.account ?? 0;
   routeParty = info?.party || [];
   routeEvo = info?.evo || {};
   const team = routeParty.map(p => `<option value="${esc(p.name)}">Lv.${p.level}${p.active ? ' · ativo' : ''}</option>`);
   const rest = (info?.names || []).filter(n => !routeParty.some(p => p.name === n)).map(n => `<option value="${esc(n)}"></option>`);
   $('#routeNames').innerHTML = team.concat(rest).join('');
+  const previous = savedRoute(routeAccount);
   const act = routeParty.find(p => p.active) || routeParty[0];
-  if (act) { routeName.value = act.name; routeLevel.value = act.level; routeTarget.value = suggestTarget(act.name, act.level); }
+  if (previous?.pokemon) {
+    routeName.value = previous.pokemon;
+    routeLevel.value = previous.level;
+    routeTarget.value = previous.target;
+  } else if (act) { routeName.value = act.name; routeLevel.value = act.level; routeTarget.value = suggestTarget(act.name, act.level); }
   routeName.focus();
   routeName.select();
 };
@@ -138,8 +172,8 @@ routeName.addEventListener('change', () => {
   if (p) { routeLevel.value = p.level; routeTarget.value = suggestTarget(p.name, p.level); }
 });
 const routeQuery = () => ({ pokemon: routeName.value, level: routeLevel.value, target: routeTarget.value });
-routeBox.addEventListener('submit', e => { e.preventDefault(); board.showRoute(routeQuery()); closeRoute(); });
-$('#routePiw').onclick = () => { if (routeBox.reportValidity()) { board.openRoute(routeQuery()); closeRoute(); } };
+routeBox.addEventListener('submit', e => { e.preventDefault(); board.showRoute(rememberRoute()); closeRoute(); });
+$('#routePiw').onclick = () => { if (routeBox.reportValidity()) { board.openRoute(rememberRoute()); closeRoute(); } };
 routeBox.addEventListener('keydown', e => { if (e.key === 'Escape') closeRoute(); });
 
 // Economia: sem limite → 30 → 20 → sem limite.

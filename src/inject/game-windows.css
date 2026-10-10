@@ -1411,6 +1411,8 @@
 #pb-route .pb-route-range small { color: var(--pb-pika-yellow); font: 600 12px/14px var(--pb-font-body); }
 #pb-route .pb-route-hunts { display: flex; flex-direction: column; gap: 10px; }
 #pb-route .pb-route-hunt { display: flex; align-items: center; gap: 12px; }
+#pb-route .pb-route-hunt > div { flex: 1; min-width: 0; }
+#pb-route .pb-route-go { flex: none; margin-right: 6px; padding: 5px 8px; border: 0; border-radius: 0; background: var(--pb-surface-raised); color: var(--pb-ink); box-shadow: var(--pb-frame-border); cursor: pointer; }
 #pb-route .pb-route-spr { flex: none; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--pb-surface); box-shadow: var(--pb-frame-border); }
 #pb-route .pb-route-spr img { max-width: 40px; max-height: 40px; image-rendering: pixelated; }
 #pb-route .pb-route-kind { color: var(--pb-ink-muted); font: 400 8px/12px var(--pb-font-pixel); text-transform: uppercase; }
@@ -1421,10 +1423,16 @@
 #pb-route .pb-route-chip[data-tone="good"] { color: var(--pb-success); box-shadow: 0 0 0 2px var(--pb-success); }
 #pb-route .pb-route-chip[data-tone="bad"] { color: #F0A53A; box-shadow: 0 0 0 2px #F0A53A; }
 #pb-route .pb-route-msg { margin: 6px 0; color: var(--pb-ink-muted); }
-#pb-route .pb-route-foot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--pb-surface); box-shadow: inset 0 2px 0 0 var(--pb-shadow-ink); }
+#pb-route .pb-route-foot { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 10px 14px; background: var(--pb-surface); box-shadow: inset 0 2px 0 0 var(--pb-shadow-ink); }
 #pb-route .pb-route-foot p { flex: 1; margin: 0; color: var(--pb-ink-muted); font-size: 12px; }
-#pb-route .pb-route-piw { flex: none; padding: 6px 12px; border: 0; background: var(--pb-surface-raised); color: var(--pb-ink); box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink); font: 600 13px/18px var(--pb-font-body); cursor: pointer; }
+#pb-route .pb-route-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+#pb-route .pb-route-actions label { display: flex; align-items: center; gap: 7px; color: var(--pb-ink-muted); }
+#pb-route .pb-route-mode { padding: 6px 8px; border: 0; border-radius: 0; background: var(--pb-screen); color: var(--pb-ink); box-shadow: var(--pb-frame-border); font: inherit; }
+#pb-route .pb-route-piw, #pb-route .pb-route-afk { flex: none; padding: 6px 12px; border: 0; background: var(--pb-surface-raised); color: var(--pb-ink); box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink); font: 600 13px/18px var(--pb-font-body); cursor: pointer; }
+#pb-route .pb-route-afk { background: var(--pb-pika-yellow); color: var(--pb-on-yellow); }
 #pb-route .pb-route-piw:hover { filter: brightness(1.12); }
+#pb-route-overlay[data-mode="safe"] .pb-route-hunt:is([data-kind="safe"], [data-kind="both"]),
+#pb-route-overlay[data-mode="dmg"] .pb-route-hunt:is([data-kind="dmg"], [data-kind="both"]) { background: var(--pb-surface); box-shadow: inset 3px 0 var(--pb-pika-yellow); }
 
 /* ---------- Pokédex: menu "Viajar para a hunt" (botão direito num card) e aviso (pokedex-plus.js) ---------- */
 #pb-dex-menu {

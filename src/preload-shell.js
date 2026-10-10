@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('board', {
   routeInfo: () => ipcRenderer.invoke('pb:route-info'),          // time da conta em foco e nomes dos Pokémon
   showRoute: q => ipcRenderer.send('pb:route-show', q),          // { pokemon, level, target } → janela no painel
   openRoute: q => ipcRenderer.send('pb:open-route', q),          // o mesmo → PIW Tools, numa janela própria
+  openIv: () => ipcRenderer.send('pb:open-iv'),
+  onAfk: cb => ipcRenderer.on('pb:afk', (_, data) => cb(data)),
+  stopAfk: () => ipcRenderer.send('pb:afk-stop'),
   devtools: i => ipcRenderer.send('pb:devtools', i),
   openTheme: () => ipcRenderer.send('pb:open-theme'),
   rename: (i, name) => ipcRenderer.send('pb:rename', i, name),

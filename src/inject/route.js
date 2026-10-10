@@ -5,7 +5,7 @@
 //   Toma = melhor efetividade dos golpes de dano do Pokémon da hunt (no nível dela) contra os tipos do seu.
 // Hunts consideradas: nível até o nível do Pokémon, nas áreas que o seu nível de treinador já abriu. A faixa troca
 // quando aparece uma hunt nova ou quando o Pokémon evolui. A rota otimizada completa (XP/h, risco) é a do PIW Tools,
-// pelo botão do rodapé. Só mostra; nada é clicado no jogo.
+// pelo botão do rodapé. "Ir" e o modo AFK usam a viagem do Mapa do próprio jogo; o AFK para ao atingir o alvo.
 (() => {
   if (window.__pbRoute) return;
   window.__pbRoute = true;
@@ -143,11 +143,13 @@
     <div class="pb-route-body"></div>
     <footer class="pb-route-foot">
       <p>Estimativa do PokeBoard pelos tipos dos golpes. A rota otimizada (XP por hora, risco e evolução) é a do PIW Tools.</p>
-      <button type="button" class="pb-route-piw">Ver rota otimizada no PIW Tools</button>
+      <div class="pb-route-actions"><label>Prioridade <select class="pb-route-mode"><option value="dmg">Maior dano</option><option value="safe">Mais segura</option></select></label>
+        <button type="button" class="pb-route-afk">Iniciar AFK nesta rota</button>
+        <button type="button" class="pb-route-piw">PIW Tools</button></div>
     </footer></section>`;
   // Cliques e teclas aqui são nossos: não chegam nos atalhos do jogo.
   for (const ev of ['keydown', 'keyup', 'keypress', 'pointerdown', 'mousedown', 'click', 'wheel']) overlay.addEventListener(ev, e => e.stopPropagation());
-  let last = null;
+  let last = null, lastResult = null, afkPlan = null, afkTimer = 0, lastAfkStatus = '';
   const close = () => { overlay.hidden = true; };
   overlay.addEventListener('click', e => {
     if (e.target === overlay || e.target.closest('.pb-route-x')) close();
@@ -155,22 +157,37 @@
       document.documentElement.dataset.pbRoutePiw = JSON.stringify(last);
       window.dispatchEvent(new Event('pb:route-piw'));  // o preload leva ao main, que abre o PIW Tools
     }
+    if (e.target.closest('.pb-route-afk') && last && lastResult && !lastResult.error) {
+      document.documentElement.dataset.pbAfkStart = JSON.stringify({ route: last, mode: overlay.querySelector('.pb-route-mode').value });
+      window.dispatchEvent(new Event('pb:afk-start'));
+      close();
+    }
+    const go = e.target.closest('[data-route-go]');
+    if (go && lastResult && !lastResult.error) {
+      const [row, kind] = go.dataset.routeGo.split(':');
+      const h = lastResult.ranges[+row]?.[kind];
+      if (h) { close(); window.__pbDexHunts?.travel(h); }
+    }
   });
   overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  overlay.addEventListener('change', e => { if (e.target.matches('.pb-route-mode')) overlay.dataset.mode = e.target.value; });
 
   const chip = (kind, x) => {
     const tone = kind === 'give' ? (x > 1 ? 'good' : x < 1 ? 'bad' : 'even') : (x < 1 ? 'good' : x > 1 ? 'bad' : 'even');
     return `<span class="pb-route-chip" data-tone="${tone}">${kind === 'give' ? 'Dá' : 'Toma'} ${mult(x)}</span>`;
   };
-  const hunt = (labels, h, spr) => `<div class="pb-route-hunt">
+  const hunt = (labels, h, spr, kind, row) => `<div class="pb-route-hunt" data-kind="${kind}">
       <span class="pb-route-spr">${spr ? `<img src="${spr}" alt="">` : ''}</span>
       <div><div class="pb-route-kind">${labels}</div>
         <div class="pb-route-line"><b>${esc(h.name)}</b>${chip('give', h.give)}${chip('take', h.take)}</div>
-        <div class="pb-route-where">Hunt nível ${h.level}${h.area ? ` · ${esc(cap(h.area))}` : ''}</div></div></div>`;
+        <div class="pb-route-where">Hunt nível ${h.level}${h.area ? ` · ${esc(cap(h.area))}` : ''}</div></div>
+      <button type="button" class="pb-route-go" data-route-go="${row}:${kind === 'both' ? 'safe' : kind}" title="Viajar para esta hunt pelo mapa">Ir</button></div>`;
 
   async function open(q) {
     last = q;
     const r = compute(q);
+    lastResult = r;
+    overlay.dataset.mode = overlay.querySelector('.pb-route-mode').value;
     const body = overlay.querySelector('.pb-route-body'), sub = overlay.querySelector('.pb-route-sub');
     if (!overlay.isConnected) document.body.append(overlay);
     overlay.hidden = false;
@@ -179,15 +196,79 @@
     sub.textContent = `${r.start.name} · Nv ${r.L} → ${r.T}${r.trainer ? ` · Treinador Nv ${r.trainer}` : ''}`;
     const spr = await sprites();
     const img = c => spr.get(baseIdOf(c)) || '';
-    body.innerHTML = r.ranges.map(x => `<div class="pb-route-row">
+    body.innerHTML = r.ranges.map((x, i) => `<div class="pb-route-row">
         <div class="pb-route-range"><span>${x.a} → ${x.b}</span>${x.me !== r.start ? `<small>${esc(x.me.name)}</small>` : ''}</div>
         <div class="pb-route-hunts">${x.none ? '<p class="pb-route-msg">Nenhuma hunt liberada até este nível.</p>'
-          : x.dmg.name === x.safe.name ? hunt('Maior dano · Mais segura', x.dmg, img(x.dmg.c))
-            : hunt('Maior dano', x.dmg, img(x.dmg.c)) + hunt('Mais segura', x.safe, img(x.safe.c))}</div></div>`).join('')
+          : x.dmg.name === x.safe.name ? hunt('Maior dano · Mais segura', x.dmg, img(x.dmg.c), 'both', i)
+            : hunt('Maior dano', x.dmg, img(x.dmg.c), 'dmg', i) + hunt('Mais segura', x.safe, img(x.safe.c), 'safe', i)}</div></div>`).join('')
       + (r.fromMap ? '' : '<p class="pb-route-msg">Sem a lista de hunts do mapa ainda: usei o nível de hunt de cada Pokémon, sem área.</p>');
   }
   window.addEventListener('pb:route-open', () => {
     try { open(JSON.parse(document.documentElement.dataset.pbRoute || '{}')); } catch {}
   });
+  const current = () => {
+    const mon = document.querySelector('.phud-mon.active');
+    return { name: norm(mon?.querySelector('.phud-name')?.textContent),
+      level: +(mon?.querySelector('.phud-lv')?.textContent || '').match(/\d+/)?.[0] || 0,
+      location: norm((document.querySelector(LOCATION)?.textContent || '').split('·').pop()) };
+  };
+  function status(message) {
+    if (message === lastAfkStatus) return;
+    lastAfkStatus = message;
+    document.documentElement.dataset.pbAfkStatus = message;
+    window.dispatchEvent(new Event('pb:afk-status'));
+  }
+  function finish(message) {
+    clearInterval(afkTimer); afkTimer = 0; afkPlan = null;
+    document.documentElement.dataset.pbAfkDone = message;
+    window.dispatchEvent(new Event('pb:afk-done'));
+  }
+  let moving = false, expected = '', moveAt = 0, missingSince = 0;
+  async function afkTick() {
+    const plan = afkPlan;
+    if (!plan || moving) return;
+    const now = current();
+    if (!now.level) {
+      missingSince ||= Date.now();
+      if (Date.now() - missingSince > 30000) return finish('Não encontrei o Pokémon ativo por 30 segundos.');
+      return status('Aguardando o nível do Pokémon ativo…');
+    }
+    missingSince = 0;
+    const names = new Set([norm(plan.r.start.name), ...plan.r.ranges.map(x => norm(x.me.name))]);
+    if (!names.has(now.name)) return finish('O Pokémon ativo mudou. Modo AFK encerrado.');
+    if (now.level >= plan.r.T) return finish(`Alvo Nv ${plan.r.T} alcançado.`);
+    const step = plan.r.ranges.find(x => x.a <= now.level && now.level < x.b);
+    if (!step || step.none) return finish(`Sem hunt para o Nv ${now.level}.`);
+    const hunt = step[plan.mode];
+    if (expected && now.location !== norm(expected)) {
+      if (Date.now() - moveAt > 20000) return finish(`Não confirmei a viagem para ${expected}.`);
+      return status(`Viajando para ${expected}…`);
+    }
+    expected = '';
+    if (now.location === norm(hunt.name)) return status(`${now.name || plan.r.start.name} · Nv ${now.level}/${plan.r.T} · ${hunt.name} (próxima troca no Nv ${step.b})`);
+    moving = true;
+    status(`Nv ${now.level}: viajando para ${hunt.name}…`);
+    try {
+      const ok = await window.__pbDexHunts?.travel(hunt);
+      if (!afkPlan) return;
+      if (!ok) return finish(`Não consegui viajar para ${hunt.name}.`);
+      expected = hunt.name; moveAt = Date.now();
+    } catch (e) { finish(`Viagem interrompida: ${e.message}`); }
+    finally { moving = false; }
+  }
+  window.addEventListener('pb:afk-on', () => {
+    try {
+      const q = JSON.parse(document.documentElement.dataset.pbAfkRoute || '{}');
+      const r = compute(q);
+      if (r.error) return finish(r.error);
+      afkPlan = { r, mode: q.mode === 'dmg' ? 'dmg' : 'safe' };
+      expected = ''; moving = false; missingSince = 0; lastAfkStatus = '';
+      clearInterval(afkTimer);
+      afkTimer = setInterval(afkTick, 15000); // reserva para quando a janela do jogo voltar ao primeiro plano
+      afkTick();
+    } catch (e) { finish(`Não consegui iniciar a rota: ${e.message}`); }
+  });
+  window.addEventListener('pb:afk-off', () => { clearInterval(afkTimer); afkTimer = 0; afkPlan = null; expected = ''; });
+  window.__pbRouteAfkTick = afkTick; // o processo principal consulta a cada 5 s mesmo com o painel oculto
   window.__pbRouteCompute = compute;  // para testes
 })();

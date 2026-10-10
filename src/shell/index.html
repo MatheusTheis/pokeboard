@@ -23,6 +23,7 @@
     </div>
     <button id="btnRoute" class="pr-btn pr-btn--secondary" aria-expanded="false" aria-controls="routeBox"
       title="Rota de treino mais eficiente para um Pokémon (Hunt Planner do PIW Tools)">Rota</button>
+    <button id="btnIv" class="pr-btn pr-btn--secondary" title="Calcular IV por valores ou print">IV</button>
     <form id="routeBox" class="route-box" hidden autocomplete="off">
       <input id="routeName" class="pr-input" list="routeNames" placeholder="Pokémon" aria-label="Pokémon" required>
       <datalist id="routeNames"></datalist>
@@ -44,6 +45,13 @@
       title="Atalhos: Ctrl+1/2… amplia uma conta · Ctrl+0 volta à grade · Ctrl+roda do mouse ou Ctrl+= / Ctrl+- muda o zoom do painel · Alt+P abre a Pokédex+ · duplo clique no nome da conta renomeia">?</button>
   </header>
   <div id="cells"></div>
+  <div id="afkNotice" class="afk-notice" hidden role="status"></div>
+  <div id="afkLock" class="afk-lock" hidden role="dialog" aria-modal="true" aria-labelledby="afkTitle">
+    <div class="afk-card"><span class="afk-led" aria-hidden="true"></span><h2 id="afkTitle">MODO AFK</h2>
+      <p id="afkAccount"></p><p id="afkStatus" role="status">Preparando a rota…</p>
+      <p class="afk-hint">Painéis ocultos · 5 fps · progresso da hunt continua no jogo</p>
+      <button id="btnAfkStop" class="pr-btn">Desbloquear e voltar</button></div>
+  </div>
   <script src="shell.js"></script>
 </body>
 </html>

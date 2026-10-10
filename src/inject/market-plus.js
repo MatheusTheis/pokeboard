@@ -16,7 +16,8 @@
   const CHECK_MS = 1000;
 
   const CURS = [['', 'Todas'], ['DOLLARS', 'Dollars'], ['DIAMONDS', 'Diamonds']];
-  let filter = '';  // vale enquanto o painel estiver aberto
+  const FILTER_KEY = 'pb:market:currency';
+  let filter = (() => { try { const v = localStorage.getItem(FILTER_KEY) || ''; return CURS.some(([k]) => k === v) ? v : ''; } catch { return ''; } })();
   let win = null, mo = null, pending = 0;
 
   // Moeda de um anúncio: primeiro pelo que aparece no preço; sem pista, pela ordem da resposta da API.
@@ -349,7 +350,7 @@
     if (!todo.length) { if (manual) say('Valores em dia'); return; }
     scanning = true;
     const saved = Object.fromEntries(Object.entries(slots).map(([k, q]) => [k, q.lastRenderedState]));
-    const visible = () => pick.isConnected && pick.closest(SELLFORM)?.dataset.pbKind === 'pokemon';
+    const visible = () => !document.documentElement.hasAttribute('data-pb-afk') && pick.isConnected && pick.closest(SELLFORM)?.dataset.pbKind === 'pokemon';
     let misses = 0, found = 0;
     try {
       for (let n = 0; n < todo.length && visible(); n++) {
@@ -419,6 +420,7 @@
     const b = e.target.closest('button[data-cur]');
     if (!b) return;
     filter = b.dataset.cur;
+    try { localStorage.setItem(FILTER_KEY, filter); } catch {}
     apply();
   });
   const countEl = control.querySelector('.pb-mkt-cur-count');

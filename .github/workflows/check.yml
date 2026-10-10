@@ -14,3 +14,6 @@ jobs:
           node-version: 22
       # Só Node: confere sintaxe dos .js e chaves dos .css (sem baixar o Electron).
       - run: node scripts/check.js
+      - run: node scripts/test-iv.js
+      - run: node scripts/test-route-afk.js
+      - run: node scripts/test-prestige-auto.js
