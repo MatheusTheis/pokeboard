@@ -258,6 +258,11 @@
 #pb-sell-kind button:hover { color: var(--pb-ink); background: var(--pb-surface-raised); }
 #pb-sell-kind button[aria-pressed="true"] { color: var(--pb-ink); background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus); }
 #pb-sell-kind button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+/* Busca automática dos valores de Pokémon (market-plus.js): status e "↻ Valores", só no formulário de Pokémon. */
+#pb-sell-kind { align-items: center; }
+#pb-sell-kind .pb-pk-scan { flex: none; max-width: 40%; color: var(--pb-ink-muted); font: 500 13px/18px var(--pb-font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pb-sell-kind button.pb-pk-rescan { flex: none; font-size: 14px; }
+#pb-sell-kind:not([data-kind="pokemon"]) :is(.pb-pk-scan, .pb-pk-rescan) { display: none; }
 /* "Vale vender" (market-plus.js), ao lado das categorias: a busca encolhe para caber. Ligado, os itens que rendem
    mais no Mercado que no Mark vêm primeiro com o ganho total no canto; os outros ficam apagados. */
 #pb-sell-worth {

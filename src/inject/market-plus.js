@@ -68,9 +68,12 @@
   kindBar.setAttribute('role', 'group');
   kindBar.setAttribute('aria-label', 'O que anunciar');
   kindBar.innerHTML = `<button type="button" data-kind="item" aria-pressed="true">Itens · Pokébolas · Diamonds</button>
-    <button type="button" data-kind="pokemon" aria-pressed="false">Pokémon</button>`;
+    <button type="button" data-kind="pokemon" aria-pressed="false">Pokémon</button>
+    <span class="pb-pk-scan" aria-live="polite"></span>
+    <button type="button" class="pb-pk-rescan" title="Buscar de novo no Mercado o valor dos Pokémon sem valor exato">↻ Valores</button>`;
   kindBar.addEventListener('click', e => {
     e.stopPropagation();
+    if (e.target.closest('.pb-pk-rescan')) { const pick = win?.querySelector(`${SELLFORM} > .mkt-pick-pk`); if (pick) scanValues(pick, true); return; }
     const k = e.target.closest('button[data-kind]')?.dataset.kind;
     if (k) { sellKind = k; apply(); }
   });
@@ -79,7 +82,8 @@
     if (!form) return;
     if (kindBar.nextElementSibling !== form) form.before(kindBar);
     if (form.dataset.pbKind !== sellKind) form.dataset.pbKind = sellKind;
-    kindBar.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === sellKind)));
+    kindBar.querySelectorAll('button[data-kind]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.kind === sellKind)));
+    kindBar.dataset.kind = sellKind;
   }
 
   // ---------- Anunciar › "Vale vender": primeiro os itens que rendem mais no Mercado do que no Mark ----------
@@ -223,7 +227,143 @@
       setAttr(t, 'data-pb-val', val);
       setAttr(t, 'data-pb-val-kind', kind);
     }
-    if (tiles && form.dataset.pbKind === 'pokemon') askSpecies(pick);
+    if (tiles && form.dataset.pbKind === 'pokemon') { askSpecies(pick); autoScan(pick); }
+  }
+
+  // ---------- Anunciar › Pokémon: busca automática dos parecidos ----------
+  // Para os seus Pokémon sem valor exato conhecido, a própria aba Pokémon do Mercado faz a busca que você faria à
+  // mão: espécie, raridade (faixa de qualidade) e IV ±10, do mais barato para o mais caro. Preenchemos os filtros
+  // dela (pelo estado da tela, sem digitar nem clicar) e é ela quem busca, com o login do jogo; a resposta entra nos
+  // preços como uma página que você abriu. Pokémon da mesma espécie e raridade com IV próximo viram uma busca só.
+  // Uma busca por vez, com intervalo, no máximo SCAN_MAX por rodada, só com os cards de Pokémon do Anunciar à vista;
+  // no fim (ou se você sair dali), os filtros da aba Pokémon voltam como estavam.
+  // Os filtros são achados pela sequência de estados da tela (ordem, shiny, 7 campos de texto, raridades ocultas; e
+  // página, espécies, espécie escolhida, resultados…): se o jogo mudar e a sequência não bater, não busca nada.
+  const BROWSE_POKEMON = `${API}?browse=pokemon`;
+  const SORT_KEYS = ['recent', 'price-asc', 'price-desc', 'iv-desc', 'power-desc', 'level-desc', 'quality-desc'];
+  const SCAN_MAX = 30;               // buscas por rodada
+  const SCAN_GAP_MS = 1200;          // intervalo entre buscas
+  const SCAN_WAIT_MS = 8000;         // espera pela resposta de cada busca
+  const SCAN_AGAIN_MS = 10 * 60e3;   // a mesma busca só se repete depois disso
+  const AUTO_EVERY_MS = 60e3;        // rodada automática no máximo a cada minuto
+  const scanned = new Map();         // busca -> quando foi feita
+  let scanning = false, lastAuto = 0;
+  const scanStatus = kindBar.querySelector('.pb-pk-scan');
+  const say = t => { if (scanStatus.textContent !== t) scanStatus.textContent = t; };
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  // Filas de estado (useState) do componente do Mercado, na ordem em que aparecem.
+  function marketQueues(el) {
+    for (let f = fiberOf(el), d = 0; f && d < 80; f = f.return, d++) {
+      if (typeof f.type !== 'function') continue;
+      const list = [];
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) if (h.queue?.dispatch) list.push(h.queue);
+      if (list.some(q => isMarketData(q.lastRenderedState))) return list;
+    }
+    return null;
+  }
+  function filterSlots(list) {
+    const v = i => list[i]?.lastRenderedState, str = x => typeof x === 'string';
+    let f = -1, sp = -1;
+    for (let i = 1; i + 9 < list.length && f < 0; i++) {
+      if (SORT_KEYS.includes(v(i)) && str(v(i - 1)) && typeof v(i + 1) === 'boolean'
+        && [2, 3, 4, 5, 6, 7, 8].every(k => str(v(i + k))) && v(i + 9) instanceof Set) f = i;
+    }
+    for (let i = 2; i + 4 < list.length && sp < 0; i++) {
+      const x = v(i);
+      if ((x === null || typeof x === 'number' || x === 'all') && (v(i - 1) === null || Array.isArray(v(i - 1))) && typeof v(i - 2) === 'number'
+        && Array.isArray(v(i + 1)) && typeof v(i + 2) === 'number' && typeof v(i + 3) === 'number' && typeof v(i + 4) === 'boolean') sp = i;
+    }
+    if (f < 0 || sp < 0) return null;
+    const at = i => list[i];
+    return {
+      q: at(f - 1), sort: at(f), shiny: at(f + 1), ivMin: at(f + 2), ivMax: at(f + 3), lvMin: at(f + 4), lvMax: at(f + 5),
+      qMin: at(f + 6), qMax: at(f + 7), type: at(f + 8), gradesOff: at(f + 9), page: at(sp - 2), species: at(sp),
+    };
+  }
+  // O que buscar: seus Pokémon (sem shiny) sem valor exato, por espécie e raridade, com IVs próximos juntos.
+  function plan(list, P) {
+    const groups = new Map();
+    for (const p of list) {
+      if (!p || p.shiny || !p.name || !(p.speciesId > 0)) continue;
+      const label = P.grade(p.quality ?? 1), iv = p.ivTotal ?? 0;
+      if (P.similar(p.name, iv, label)) continue;
+      const k = `${p.speciesId}|${label}`;
+      if (!groups.has(k)) groups.set(k, { sp: p.speciesId, label, ivs: [] });
+      groups.get(k).ivs.push(iv);
+    }
+    const out = [];
+    for (const g of groups.values()) {
+      const ivs = [...new Set(g.ivs)].sort((a, b) => a - b);
+      for (let i = 0; i < ivs.length;) {
+        let j = i;
+        while (j + 1 < ivs.length && ivs[j + 1] - ivs[i] <= P.IV_MARGIN) j++;
+        const ivMin = Math.max(0, ivs[i] - P.IV_MARGIN), ivMax = ivs[j] + P.IV_MARGIN;
+        out.push({ sp: g.sp, label: g.label, ivMin, ivMax, key: `${g.sp}|${g.label}|${ivMin}-${ivMax}` });
+        i = j + 1;
+      }
+    }
+    return out.filter(q => Date.now() - (scanned.get(q.key) || 0) >= SCAN_AGAIN_MS);
+  }
+  // Resposta da busca da aba Pokémon que chegou depois de `since` (e é da espécie pedida, quando traz anúncios).
+  function waitBrowse(since, sp) {
+    return new Promise(res => {
+      const done = v => { clearTimeout(t); window.removeEventListener('pb:data', on); res(v); };
+      const t = setTimeout(() => done(null), SCAN_WAIT_MS);
+      function on(e) {
+        if (e.detail?.path !== BROWSE_POKEMON) return;
+        const hit = window.__pbCache?.[BROWSE_POKEMON], l = hit?.data?.listings;
+        if (!hit || hit.at < since || !Array.isArray(l) || (l.length && l[0].speciesId != null && l[0].speciesId !== sp)) return;
+        done(hit.data);
+      }
+      window.addEventListener('pb:data', on);
+    });
+  }
+  async function scanValues(pick, manual) {
+    const P = window.__pbPrices;
+    if (scanning || !P) return;
+    const list = myPokes(pick), queues = marketQueues(pick), slots = queues && filterSlots(queues);
+    if (!list || !slots) { if (manual) say('Não deu para buscar: a tela do Mercado mudou'); return; }
+    if (manual) for (const [k, at] of scanned) if (Date.now() - at < SCAN_AGAIN_MS) scanned.delete(k);
+    const todo = plan(list, P).slice(0, SCAN_MAX);
+    if (!todo.length) { if (manual) say('Valores em dia'); return; }
+    scanning = true;
+    const saved = Object.fromEntries(Object.entries(slots).map(([k, q]) => [k, q.lastRenderedState]));
+    const visible = () => pick.isConnected && pick.closest(SELLFORM)?.dataset.pbKind === 'pokemon';
+    let misses = 0, found = 0;
+    try {
+      for (let n = 0; n < todo.length && visible(); n++) {
+        const q = todo[n], [lo, hi] = P.gradeRange(q.label);
+        say(`Buscando valores no Mercado… ${n + 1}/${todo.length}`);
+        const since = Date.now();
+        slots.q.dispatch(''); slots.sort.dispatch('price-asc'); slots.shiny.dispatch(false);
+        slots.ivMin.dispatch(String(q.ivMin)); slots.ivMax.dispatch(String(q.ivMax));
+        slots.lvMin.dispatch(''); slots.lvMax.dispatch(''); slots.type.dispatch(''); slots.gradesOff.dispatch(new Set());
+        slots.qMin.dispatch(Number.isFinite(lo) ? String(lo) : '');
+        slots.qMax.dispatch(Number.isFinite(hi) ? String(+(hi - 0.0001).toFixed(4)) : '');
+        slots.species.dispatch(q.sp);
+        let data = await waitBrowse(since, q.sp);
+        if (!data) { if (++misses >= 2) { say('O Mercado não respondeu; tente ↻ Valores mais tarde'); break; } continue; }
+        // Página 1 só em diamonds (o preço não separa moeda): olha a 2.
+        if (!data.listings.some(l => l.currency === 'GOLD') && (data.pages || 1) > 1) {
+          const s2 = Date.now();
+          slots.page.dispatch(2);
+          data = (await waitBrowse(s2, q.sp)) || data;
+        }
+        if (data.listings.some(l => l.currency === 'GOLD')) found++;
+        scanned.set(q.key, Date.now());
+        await sleep(SCAN_GAP_MS);
+      }
+    } finally {
+      for (const [k, v] of Object.entries(saved)) slots[k].dispatch(v);  // filtros da aba Pokémon como estavam
+      scanning = false;
+    }
+    if (!/não respondeu/.test(scanStatus.textContent)) say(`Valores atualizados (${found} de ${todo.length} com anúncio em dollars)`);
+  }
+  function autoScan(pick) {
+    if (scanning || Date.now() - lastAuto < AUTO_EVERY_MS) return;
+    lastAuto = Date.now();
+    scanValues(pick, false);
   }
 
   const money = (n, cur) => `${Number(n || 0).toLocaleString('pt-BR')} ${cur === 'DIAMONDS' ? 'diamonds' : 'dollars'}`;
@@ -485,6 +625,11 @@
       return list.length ? { p: Math.min(...list.map(r => r[0])), n: list.length, whole: false } : null;
     },
     speciesAge: () => (market?.spAt ? Date.now() - market.spAt : Infinity),
+    // Faixa de qualidade da raridade: [mínimo, máximo exclusivo] (Fraca começa em -Infinity, Divina não tem máximo).
+    gradeRange(label) {
+      const i = GRADES.findIndex(([, g]) => norm(g) === norm(label));
+      return i < 0 ? [-Infinity, Infinity] : [GRADES[i][0], i > 0 ? GRADES[i - 1][0] : Infinity];
+    },
     npc: name => npcMap()?.get(norm(name)),        // o que o Mark paga; undefined = sem dado
   };
 })();
