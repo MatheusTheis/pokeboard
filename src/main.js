@@ -1,5 +1,5 @@
 // Processo principal: janela do board + 4 painéis do jogo, cada um com sessão própria.
-const { app, BrowserWindow, WebContentsView, Menu, dialog, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, Tray, dialog, ipcMain, safeStorage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { createRecorder } = require('./recorder');
@@ -105,6 +105,7 @@ let state = {
   prefs: {},                 // preferências dos botões nossos dentro do jogo (ver PREFS), iguais para todas as contas
   skin: true,                // visual PokeBoard no jogo; false = design original do jogo
   engine,                    // opções do motor (acima); só valem ao abrir o app
+  closeToTray: true,         // fechar a janela deixa o PokeBoard rodando na bandeja (ver "bandeja")
 };
 // Preferências que os scripts injetados podem salvar. Cada uma tem um validador: devolve o valor limpo,
 // ou undefined para recusar (o que vem do jogo nunca entra no board.json sem passar por aqui).
@@ -155,6 +156,7 @@ function loadState() {
     prefs: Object.fromEntries(Object.entries(PREFS).map(([k, p]) => [k, p.clean(saved.prefs?.[k]) ?? p.def])),
     skin: saved.skin !== false,
     engine,
+    closeToTray: saved.closeToTray !== false,
   };
 }
 const slotAt = i => state.accountSlots[i];
@@ -637,7 +639,37 @@ if (process.platform === 'win32') app.setAppUserModelId('com.matheustheis.pokebo
 const isolatedMock = !!process.env.PB_GAME_URL && app.commandLine.hasSwitch('user-data-dir');
 const firstInstance = isolatedMock || app.requestSingleInstanceLock();
 if (!firstInstance) app.quit();
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+app.on('second-instance', showWindow);
+
+// ---------- bandeja ----------
+// Fechar a janela (X) esconde o PokeBoard em vez de sair: as contas continuam no jogo, como no modo AFK (sem
+// desenhar), e o próprio jogo continua renovando o login enquanto o PC estiver ligado. O ícone perto do relógio
+// abre a janela de novo; "Sair" no menu dele fecha de verdade. Dá para desligar no mesmo menu (board.json →
+// closeToTray).
+let tray = null, quitting = false, trayHintShown = false;
+function showWindow() {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+function trayMenu() {
+  return Menu.buildFromTemplate([
+    { label: 'Abrir PokeBoard', click: showWindow },
+    { label: 'Fechar a janela deixa rodando aqui', type: 'checkbox', checked: state.closeToTray,
+      click: item => { state.closeToTray = item.checked; saveState(); } },
+    { type: 'separator' },
+    { label: 'Sair do PokeBoard', click: () => { quitting = true; app.quit(); } },
+  ]);
+}
+function createTray() {
+  tray = new Tray(ICON_PATH);
+  tray.setToolTip('PokeBoard');
+  tray.setContextMenu(trayMenu());
+  tray.on('click', showWindow);
+  tray.on('right-click', () => tray.setContextMenu(trayMenu()));  // marca a opção como está agora
+}
+app.on('before-quit', () => { quitting = true; });
 
 app.whenReady().then(() => {
   if (!firstInstance) return;
@@ -656,6 +688,17 @@ app.whenReady().then(() => {
     webPreferences: { preload: path.join(__dirname, 'preload-shell.js'), contextIsolation: true, sandbox: true, spellcheck: false },
   });
   win.loadFile(path.join(__dirname, 'shell', 'index.html'));
+  createTray();
+  win.on('close', e => {
+    if (quitting || !state.closeToTray) return;
+    e.preventDefault();
+    win.hide();
+    if (!trayHintShown && process.platform === 'win32') {
+      trayHintShown = true;
+      tray.displayBalloon({ iconType: 'info', title: 'O PokeBoard continua rodando',
+        content: 'As contas seguem no jogo e o login continua sendo renovado. Para sair, clique com o botão direito no ícone e escolha Sair.' });
+    }
+  });
   if (state.focus >= state.accountCount) state.focus = 0;
   for (const slot of state.accountSlots) views.push(createView(slot));
   // 'resize' nem sempre dispara ao maximizar ou entrar em tela cheia.
