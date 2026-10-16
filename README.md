@@ -74,7 +74,7 @@ Na primeira vez, faça login em cada painel com uma conta diferente. O login de 
 
 Só abre uma janela do PokeBoard por vez; abrir de novo traz a que já está aberta para a frente.
 
-Fechar a janela (X) não fecha o PokeBoard: ele fica na bandeja do Windows, perto do relógio, com as contas no jogo (como no modo AFK) e o próprio jogo renovando o login enquanto o PC estiver ligado. Clique no ícone para abrir de novo; para sair de verdade, clique com o botão direito no ícone e escolha **Sair do PokeBoard**. No mesmo menu dá para desligar isso. O login não fica salvo para sempre: se o PokeBoard ficar fechado por dias, o servidor do jogo expira a sessão e é preciso entrar de novo (a senha nunca é guardada).
+Fechar a janela (X) não fecha o PokeBoard: ele fica na bandeja do Windows, perto do relógio, com as contas no jogo (como no modo AFK). Clique no ícone para abrir de novo; para sair de verdade, clique com o botão direito no ícone e escolha **Sair do PokeBoard**. No mesmo menu dá para desligar isso. O login não fica salvo para sempre: se o PokeBoard ficar fechado por dias, o servidor do jogo expira a sessão e é preciso entrar de novo (a senha nunca é guardada). Quando isso acontece, o jogo mostra "Sessão inválida ou expirada": o PokeBoard apaga a sessão vencida daquela conta e volta para a tela de login sozinho. Se precisar fazer isso à mão, clique com o botão direito na aba da conta e escolha **Sair desta conta**.
 
 ## Uso
 

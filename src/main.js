@@ -399,7 +399,15 @@ function closeAccount(slot) {
 }
 ipcMain.on('pb:account-menu', (e, slot) => {
   if (e.sender !== win?.webContents || !Number.isInteger(slot) || indexOfSlot(slot) < 0) return;
-  Menu.buildFromTemplate([{ label: 'Fechar aba', enabled: views.length > 1, click: async () => {
+  Menu.buildFromTemplate([{ label: 'Sair desta conta…', click: async () => {
+    const name = state.accounts[slot].name;
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question', title: 'Sair desta conta', message: `Sair da conta ${name}?`,
+      detail: 'A sessão desta aba e o login salvo dela são apagados e o jogo volta para a tela de login, para você entrar de novo.',
+      buttons: ['Cancelar', 'Sair da conta'], defaultId: 0, cancelId: 0, noLink: true,
+    });
+    if (response === 1) forgetLogin(slot);
+  } }, { label: 'Fechar aba', enabled: views.length > 1, click: async () => {
     const name = state.accounts[slot].name;
     const { response } = await dialog.showMessageBox(win, {
       type: 'question', title: 'Fechar aba', message: `Fechar a aba ${name}?`,
@@ -417,6 +425,28 @@ const viewIndex = e => views.findIndex(v => v.webContents.id === e.sender.id);
 const viewSlot = e => slotAt(viewIndex(e));
 const loginLog = (i, msg) => process.env.PB_DEBUG && console.log(`[conta${i + 1}] login: ${msg}`);
 const loginRestored = new Set();  // restaura uma vez por execução: se o jogo recusar a sessão, não insiste
+// Sessão vencida: o servidor responde "Sessão inválida ou expirada" e o jogo para nessa tela, sem o login. O
+// preload avisa; aqui apagamos a cópia salva desta conta e autorizamos limpar a sessão da aba e recarregar, o que
+// leva ao login do jogo. Uma vez por conta até um login novo (pb:login-save com login), para não entrar em laço.
+const expiredHandled = new Set();
+ipcMain.on('pb:login-expired', e => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0 || expiredHandled.has(slot)) { e.returnValue = false; return; }
+  expiredHandled.add(slot);
+  fs.rmSync(LOGIN_PATH(slot), { force: true });
+  loginLog(slot, 'sessão expirada: cópia apagada, voltando para o login');
+  e.returnValue = true;
+});
+// "Sair desta conta" (menu da aba): apaga a sessão da aba e a cópia salva e recarrega no login do jogo.
+async function forgetLogin(slot) {
+  fs.rmSync(LOGIN_PATH(slot), { force: true });
+  const wc = views[indexOfSlot(slot)]?.webContents;
+  if (!wc || wc.isDestroyed()) return;
+  try { await wc.executeJavaScript('sessionStorage.clear()'); } catch {}
+  wc.reload();
+}
+// Origem do jogo, para o preload saber onde cuidar do login (com PB_GAME_URL, a do jogo falso dos testes).
+ipcMain.on('pb:game-origin', e => { try { e.returnValue = new URL(GAME_URL).origin; } catch { e.returnValue = ''; } });
 ipcMain.on('pb:login-trace', (e, msg) => { const slot = viewSlot(e); if (slot !== undefined) loginLog(slot, String(msg).slice(0, 2000)); });
 // Não dá para conferir a URL do painel aqui: o preload roda antes de o main registrar a navegação,
 // e na troca de página o frame antigo some antes da mensagem chegar. Quem confere a origem do jogo é o preload.
@@ -439,6 +469,7 @@ ipcMain.on('pb:login-save', (e, value, hasLogin) => {
     else if (value.length < 1048576 && safeStorage.isEncryptionAvailable()) {
       fs.writeFileSync(LOGIN_PATH(i), safeStorage.encryptString(value));
       loginLog(i, `salvo (${hasLogin ? 'com login' : 'sem login'})`);
+      if (hasLogin) expiredHandled.delete(i);  // login novo: se vencer de novo, recupera de novo
     }
   } catch (err) { console.error('[PokeBoard] login', err); }
 });
@@ -643,9 +674,9 @@ app.on('second-instance', showWindow);
 
 // ---------- bandeja ----------
 // Fechar a janela (X) esconde o PokeBoard em vez de sair: as contas continuam no jogo, como no modo AFK (sem
-// desenhar), e o próprio jogo continua renovando o login enquanto o PC estiver ligado. O ícone perto do relógio
-// abre a janela de novo; "Sair" no menu dele fecha de verdade. Dá para desligar no mesmo menu (board.json →
-// closeToTray).
+// desenhar). O ícone perto do relógio abre a janela de novo; "Sair" no menu dele fecha de verdade. Dá para
+// desligar no mesmo menu (board.json → closeToTray). A validade da sessão é do servidor do jogo: ficar aberto
+// não impede que ela expire.
 let tray = null, quitting = false, trayHintShown = false;
 function showWindow() {
   if (!win) return;
@@ -696,7 +727,7 @@ app.whenReady().then(() => {
     if (!trayHintShown && process.platform === 'win32') {
       trayHintShown = true;
       tray.displayBalloon({ iconType: 'info', title: 'O PokeBoard continua rodando',
-        content: 'As contas seguem no jogo e o login continua sendo renovado. Para sair, clique com o botão direito no ícone e escolha Sair.' });
+        content: 'As contas seguem no jogo. Para sair, clique com o botão direito no ícone e escolha Sair.' });
     }
   });
   if (state.focus >= state.accountCount) state.focus = 0;

@@ -3,7 +3,8 @@
 // e (2) a Pokédex+. Nenhum dos dois clica em nada nem envia ações ao jogo.
 const { ipcRenderer, webFrame } = require('electron');
 
-const GAME_ORIGIN = 'https://poke.idleworld.online';
+// Origem do jogo (o main informa; com PB_GAME_URL é a do jogo falso dos testes). Main antigo, sem o canal: o jogo.
+const GAME_ORIGIN = (() => { try { return ipcRenderer.sendSync('pb:game-origin') || 'https://poke.idleworld.online'; } catch { return 'https://poke.idleworld.online'; } })();
 const TOKEN_KEY = 'pokeweb:tokens';  // onde o jogo guarda o login (sessionStorage); só para o log
 
 // Login salvo: o jogo guarda a sessão só no sessionStorage, que some ao fechar o app.
@@ -35,6 +36,22 @@ if (location.origin === GAME_ORIGIN) {
   };
   setInterval(sync, 3000);
   window.addEventListener('pagehide', () => { sync(); trace('saindo'); });
+
+  // Sessão vencida: o servidor diz "Sessão inválida ou expirada" e o jogo fica parado nessa tela, sem o login.
+  // Nos primeiros minutos da página, se a mensagem aparecer fora do jogo (sem a barra de telas), o main apaga a
+  // cópia salva desta conta (pb:login-expired) e aqui limpamos a sessão da aba e recarregamos: o jogo abre o login.
+  const EXPIRED = /sess[aã]o inv[aá]lida ou expirada|invalid or expired session|sesi[oó]n inv[aá]lida o expirada/i;
+  let expiredChecks = 0;
+  const expiredTimer = setInterval(() => {
+    if (++expiredChecks > 90 || document.querySelector('.game-dock')) { clearInterval(expiredTimer); return; }  // 3 min, ou já no jogo
+    if (!EXPIRED.test(document.body?.innerText || '')) return;
+    clearInterval(expiredTimer);
+    trace('sessão expirada na tela');
+    if (!ipcRenderer.sendSync('pb:login-expired')) return;
+    try { sessionStorage.clear(); } catch {}
+    last = snapshot();
+    location.reload();
+  }, 2000);
   document.addEventListener('visibilitychange', sync);
 }
 
