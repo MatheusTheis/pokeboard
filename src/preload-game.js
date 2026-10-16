@@ -65,6 +65,34 @@ if (location.origin === GAME_ORIGIN) {
     last = snapshot();
     location.reload();
   }, 2000);
+
+  // Login salvo (opcional, ver main.js): na tela de login do jogo, se esta conta tem login salvo no PokeBoard,
+  // preenche usuário e senha e deixa o botão Entrar em foco; quem clica é você (a verificação da Cloudflare fica com
+  // o jogo). Ao entrar digitando, o main pergunta, depois que o login der certo, se quer salvar.
+  const LOGIN_FORM = 'form.auth-card';
+  const USER_INPUT = 'input[autocomplete="username"]';
+  const PASS_INPUT = 'input[autocomplete="current-password"]';  // não o "new-password" do cadastro
+  const setNative = (el, v) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  let credTried = false;  // uma vez por passagem pela tela de login (se você apagar, não preenche de novo)
+  setInterval(() => {
+    const form = document.querySelector(LOGIN_FORM), user = form?.querySelector(USER_INPUT), pass = form?.querySelector(PASS_INPUT);
+    if (!user || !pass) { credTried = false; return; }
+    if (credTried || user.value || pass.value) return;
+    credTried = true;
+    const cred = ipcRenderer.sendSync('pb:cred-get');
+    if (!cred) return;
+    setNative(user, cred.user);
+    setNative(pass, cred.pass);
+    form.querySelector('button[type="submit"]')?.focus();
+  }, 1000);
+  document.addEventListener('submit', e => {
+    const form = e.target?.matches?.(LOGIN_FORM) ? e.target : null;
+    const user = form?.querySelector(USER_INPUT)?.value || '', pass = form?.querySelector(PASS_INPUT)?.value || '';
+    if (user && pass) ipcRenderer.send('pb:cred-offer', { user, pass });
+  }, true);
   document.addEventListener('visibilitychange', sync);
 }
 

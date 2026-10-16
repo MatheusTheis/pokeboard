@@ -407,6 +407,8 @@ ipcMain.on('pb:account-menu', (e, slot) => {
       buttons: ['Cancelar', 'Sair da conta'], defaultId: 0, cancelId: 0, noLink: true,
     });
     if (response === 1) forgetLogin(slot);
+  } }, { label: 'Esquecer login salvo', enabled: fs.existsSync(CRED_PATH(slot)), click: () => {
+    fs.rmSync(CRED_PATH(slot), { force: true });
   } }, { label: 'Fechar aba', enabled: views.length > 1, click: async () => {
     const name = state.accounts[slot].name;
     const { response } = await dialog.showMessageBox(win, {
@@ -445,6 +447,46 @@ async function forgetLogin(slot) {
   try { await wc.executeJavaScript('sessionStorage.clear()'); } catch {}
   wc.reload();
 }
+// ---------- login salvo (opcional) ----------
+// Usuário e senha de cada conta, só se você aceitar depois de entrar no jogo pelo PokeBoard. Ficam neste computador,
+// criptografados com o usuário do Windows (DPAPI, safeStorage), e só voltam para preencher a tela de login do
+// próprio jogo nesta conta; quem clica em Entrar é você. Nunca vão para o log nem para outro lugar.
+const CRED_PATH = slot => path.join(app.getPath('userData'), `credenciais-conta${slot + 1}.bin`);
+const CRED_OFFER_MS = 2 * 60e3;  // o login precisa dar certo neste tempo para a pergunta aparecer
+const credOffers = new Map();    // slot -> { user, pass, at }: digitado, esperando o login dar certo
+function readCred(slot) {
+  try {
+    if (!safeStorage.isEncryptionAvailable() || !fs.existsSync(CRED_PATH(slot))) return null;
+    const c = JSON.parse(safeStorage.decryptString(fs.readFileSync(CRED_PATH(slot))));
+    return typeof c?.user === 'string' && typeof c?.pass === 'string' ? c : null;
+  } catch { return null; }
+}
+ipcMain.on('pb:cred-get', e => {
+  const slot = viewSlot(e);
+  e.returnValue = Number.isInteger(slot) && slot >= 0 ? readCred(slot) : null;
+});
+ipcMain.on('pb:cred-offer', (e, c) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0 || typeof c?.user !== 'string' || typeof c?.pass !== 'string') return;
+  const user = c.user.slice(0, 200), pass = c.pass.slice(0, 200);
+  const saved = readCred(slot);
+  if (!user || !pass || (saved && saved.user === user && saved.pass === pass)) return;
+  credOffers.set(slot, { user, pass, at: Date.now() });
+});
+// Chamado quando o login desta conta deu certo (pb:login-save com login).
+async function askSaveCred(slot) {
+  const offer = credOffers.get(slot);
+  credOffers.delete(slot);
+  if (!offer || Date.now() - offer.at > CRED_OFFER_MS || !safeStorage.isEncryptionAvailable() || !win) return;
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question', title: 'Salvar login', message: `Salvar o login da ${state.accounts[slot]?.name || `Conta ${slot + 1}`} no PokeBoard?`,
+    detail: 'Fica só neste computador, criptografado com o seu usuário do Windows. Quando a sessão expirar, o PokeBoard '
+      + 'preenche usuário e senha na tela de login do jogo e você só clica em Entrar. Para apagar: botão direito na aba '
+      + 'da conta → Esquecer login salvo.',
+    buttons: ['Agora não', 'Salvar'], defaultId: 1, cancelId: 0, noLink: true,
+  });
+  if (response === 1) fs.writeFileSync(CRED_PATH(slot), safeStorage.encryptString(JSON.stringify({ user: offer.user, pass: offer.pass })));
+}
 // Origem do jogo, para o preload saber onde cuidar do login (com PB_GAME_URL, a do jogo falso dos testes).
 ipcMain.on('pb:game-origin', e => { try { e.returnValue = new URL(GAME_URL).origin; } catch { e.returnValue = ''; } });
 ipcMain.on('pb:login-trace', (e, msg) => { const slot = viewSlot(e); if (slot !== undefined) loginLog(slot, String(msg).slice(0, 2000)); });
@@ -470,6 +512,7 @@ ipcMain.on('pb:login-save', (e, value, hasLogin) => {
       fs.writeFileSync(LOGIN_PATH(i), safeStorage.encryptString(value));
       loginLog(i, `salvo (${hasLogin ? 'com login' : 'sem login'})`);
       if (hasLogin) expiredHandled.delete(i);  // login novo: se vencer de novo, recupera de novo
+      if (hasLogin && credOffers.has(i)) askSaveCred(i);  // entrou digitando: pergunta se salva o login
     }
   } catch (err) { console.error('[PokeBoard] login', err); }
 });
