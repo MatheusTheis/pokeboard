@@ -16,12 +16,14 @@ if (location.origin === GAME_ORIGIN) {
   // Diagnóstico (só aparece com PB_DEBUG): nomes das chaves, nunca os valores.
   const trace = when => ipcRenderer.send('pb:login-trace', `${when} ${location.pathname} · session=[${keys(sessionStorage)}] local=[${keys(localStorage)}]`);
   let last = '';
+  let restoredNow = false;  // esta página começou com a sessão salva (ver a recuperação mais abaixo)
   try {
     trace('início');
     if (!sessionStorage.length) {  // aba nova: nada do jogo ainda nesta sessão
       const saved = ipcRenderer.sendSync('pb:login-get');
       if (saved) {
         for (const [k, v] of Object.entries(JSON.parse(saved))) sessionStorage.setItem(k, v);
+        restoredNow = true;
         trace('restaurado');
       }
     }
@@ -37,16 +39,27 @@ if (location.origin === GAME_ORIGIN) {
   setInterval(sync, 3000);
   window.addEventListener('pagehide', () => { sync(); trace('saindo'); });
 
-  // Sessão vencida: o servidor diz "Sessão inválida ou expirada" e o jogo fica parado nessa tela, sem o login.
-  // Nos primeiros minutos da página, se a mensagem aparecer fora do jogo (sem a barra de telas), o main apaga a
-  // cópia salva desta conta (pb:login-expired) e aqui limpamos a sessão da aba e recarregamos: o jogo abre o login.
+  // Sessão vencida ou que o jogo não aceita mais. Dois casos, nos primeiros minutos da página e fora do jogo (sem a
+  // barra de telas):
+  //   - o servidor diz "Sessão inválida ou expirada" e o jogo fica parado nessa tela, sem o login;
+  //   - a página começou com a sessão salva e ficou em branco (ou com o "Application error" do Next.js) por 30 s:
+  //     uma cópia antiga, de antes de o jogo mudar o login, que o jogo novo não consegue abrir.
+  // Nos dois, o main apaga a cópia salva desta conta (pb:login-expired) e aqui limpamos a sessão da aba e
+  // recarregamos: o jogo abre o login.
   const EXPIRED = /sess[aã]o inv[aá]lida ou expirada|invalid or expired session|sesi[oó]n inv[aá]lida o expirada/i;
+  const CRASHED = /application error|client-side exception/i;
+  const BLANK_CHECKS = 15;  // 15 × 2 s: folga para um jogo lento abrir
   let expiredChecks = 0;
   const expiredTimer = setInterval(() => {
     if (++expiredChecks > 90 || document.querySelector('.game-dock')) { clearInterval(expiredTimer); return; }  // 3 min, ou já no jogo
-    if (!EXPIRED.test(document.body?.innerText || '')) return;
+    // Só o que é do jogo: os elementos nossos na página (id/classe "pb…", como o botão da Pokédex+) não contam.
+    const game = [...(document.body?.children || [])].filter(el => !/^pb/i.test(el.id || '') && !/(^|\s)pb/i.test(el.className || '') && !/^(SCRIPT|STYLE|NOSCRIPT)$/.test(el.tagName));
+    const text = game.map(el => el.innerText || '').join(' ');
+    const blank = !text.trim() && !game.some(el => el.matches('input, canvas, iframe, img, video') || el.querySelector('input, canvas, iframe, img, video'));
+    const broken = restoredNow && expiredChecks >= BLANK_CHECKS && (CRASHED.test(text) || blank);
+    if (!EXPIRED.test(text) && !broken) return;
     clearInterval(expiredTimer);
-    trace('sessão expirada na tela');
+    trace(broken ? 'sessão restaurada deixou o jogo em branco' : 'sessão expirada na tela');
     if (!ipcRenderer.sendSync('pb:login-expired')) return;
     try { sessionStorage.clear(); } catch {}
     last = snapshot();
