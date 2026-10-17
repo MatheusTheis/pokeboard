@@ -1749,3 +1749,47 @@
 .game-root .game-dock .dock-btn[data-guide="dock-analyzer"] img { width: 22px !important; height: 22px !important; }
 .game-root .game-dock .dock-btn[data-guide="dock-analyzer"]:hover { filter: brightness(1.12) !important; box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
 .game-root .game-dock .dock-btn[data-guide="dock-analyzer"].on { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+
+/* Mercado: histórico de preços (market-history.js). Seta ao lado do preço de cada anúncio e card ao passar o mouse. */
+.game-root .mkt2-window .mkt2-price[data-pb-trend]::after {
+  content: attr(data-pb-trend-txt);
+  margin-left: 6px;
+  padding: 0 4px;
+  color: var(--pb-ink-muted);
+  font: 700 11px/16px var(--pb-font-body);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.game-root .mkt2-window .mkt2-price[data-pb-trend="low"]::after { background: var(--pb-success); color: var(--pb-on-success); }
+.game-root .mkt2-window .mkt2-price[data-pb-trend="high"]::after { background: var(--pb-dex-red); color: var(--pb-on-red); }
+#pb-mh {
+  position: fixed;
+  z-index: 2147482900;
+  width: 284px;
+  padding-bottom: 8px;
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink);
+  color: var(--pb-ink);
+  font: 500 13px/17px var(--pb-font-body);
+  pointer-events: none;
+}
+#pb-mh[hidden] { display: none; }
+#pb-mh * { box-sizing: border-box; }
+#pb-mh .pbmh-head { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 8px; background: var(--pb-dex-red); box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep); color: var(--pb-on-red); }
+#pb-mh .pbmh-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 11px/16px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-mh .pbmh-head span { font-size: 12px; opacity: .85; }
+#pb-mh .pbmh-verdict { margin: 8px 10px 4px; color: var(--pb-ink-muted); font-weight: 700; }
+#pb-mh .pbmh-verdict.low { color: var(--pb-success); }
+#pb-mh .pbmh-verdict.high { color: var(--pb-dex-red-ink); }
+#pb-mh .pbmh-spark { display: block; margin: 6px 10px; background: var(--pb-screen); box-shadow: var(--pb-frame-border); }
+#pb-mh .pbmh-spark polyline { fill: none; stroke: var(--pb-poke-blue); stroke-width: 2; }
+#pb-mh .pbmh-spark .pbmh-base { stroke: var(--pb-ink-muted); stroke-width: 1; stroke-dasharray: 3 3; }
+#pb-mh .pbmh-spark .pbmh-dots rect { fill: var(--pb-poke-blue); }
+#pb-mh .pbmh-spark .pbmh-now { fill: var(--pb-pika-yellow); }
+#pb-mh .pbmh-spark .pbmh-now.low { fill: var(--pb-success); }
+#pb-mh .pbmh-spark .pbmh-now.high { fill: var(--pb-dex-red-ink); }
+#pb-mh dl { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; margin: 6px 10px 0; }
+#pb-mh dt { color: var(--pb-ink-muted); }
+#pb-mh dd { margin: 0; font-weight: 700; text-align: right; white-space: nowrap; }
+#pb-mh dd small { color: var(--pb-ink-muted); font-weight: 500; }
+#pb-mh .pbmh-foot { margin: 8px 10px 0; color: var(--pb-ink-muted); font-size: 11px; }

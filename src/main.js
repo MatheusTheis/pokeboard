@@ -40,7 +40,7 @@ const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
 #pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age, #pb-sell-worth, #pb-pk-sort,
 #pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay, #pb-prestige-auto, #pb-prestige-status,
-#pb-prestige-panel, #pb-chat-open, #pb-chat-hide, #pb-cap-ball-status { display: none !important; }`;
+#pb-prestige-panel, #pb-chat-open, #pb-chat-hide, #pb-cap-ball-status, #pb-mh { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
@@ -64,6 +64,7 @@ const INJECT = {
   activity: path.join(__dirname, 'inject', 'activity.js'),
   autoBall: path.join(__dirname, 'inject', 'auto-ball.js'),
   breeding: path.join(__dirname, 'inject', 'breeding-plus.js'),
+  marketHist: path.join(__dirname, 'inject', 'market-history.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -544,6 +545,78 @@ ipcMain.on('pb:set-dock-order', (e, order) => {
   saveState();
   views.forEach((_, i) => applyTheme(i));
 });
+// ---------- histórico de preços do Mercado (market-history.js) ----------
+// O mais barato de cada item (por moeda) cada vez que o jogo carrega a lista do Mercado, em qualquer conta. Um arquivo
+// só para todas as contas, com a hora deste processo. Só preços públicos do Mercado, nada da conta.
+const MKT_PATH = () => path.join(app.getPath('userData'), 'historico-mercado.json');
+const MKT_SESSION_MIN = 20;  // dentro disso a observação substitui a anterior (mesma visita ao Mercado)
+const MKT_RAW_DAYS = 3;      // depois disso fica um ponto por dia (o menor preço)
+const MKT_KEEP_DAYS = 120;
+const MKT_MAX_OBS = 400;     // por item
+const MKT_MAX_ITEMS = 3000;
+let mktHist = null, mktSaveTimer = null, mktSendTimer = null;
+function marketHistory() {
+  if (mktHist) return mktHist;
+  try {
+    const v = JSON.parse(fs.readFileSync(MKT_PATH(), 'utf8'));
+    if (v?.v === 1 && v.items && typeof v.items === 'object') mktHist = v;
+  } catch {}
+  return (mktHist ||= { v: 1, items: {} });
+}
+const mktDay = min => new Date(min * 60e3).toDateString();
+function compactMarketObs(o, nowMin) {
+  const rawFrom = nowMin - MKT_RAW_DAYS * 1440, keepFrom = nowMin - MKT_KEEP_DAYS * 1440;
+  const recent = [], byDay = new Map();
+  for (const r of o) {
+    if (r[0] < keepFrom) continue;
+    if (r[0] >= rawFrom) { recent.push(r); continue; }
+    const d = mktDay(r[0]), cur = byDay.get(d);
+    if (!cur || r[1] < cur[1]) byDay.set(d, r);
+  }
+  return [...byDay.values(), ...recent].sort((a, b) => a[0] - b[0]).slice(-MKT_MAX_OBS);
+}
+function saveMarketNow() {
+  clearTimeout(mktSaveTimer);
+  mktSaveTimer = null;
+  if (!mktHist) return;
+  try {
+    const tmp = `${MKT_PATH()}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(mktHist));
+    fs.renameSync(tmp, MKT_PATH());
+  } catch (err) { console.error('[PokeBoard] histórico do mercado', err); }
+}
+app.on('will-quit', () => { if (mktSaveTimer) saveMarketNow(); });
+const sendMarketHistory = wc => { if (!wc.isDestroyed()) wc.send('pb:market-history', marketHistory()); };
+// rows: [[chave "nome|GOLD" ou "nome|DIAMONDS", nome, categoria, preço, quantidade], …]
+ipcMain.on('pb:market-obs', (e, rows) => {
+  if (!Number.isInteger(viewSlot(e)) || !Array.isArray(rows) || rows.length > 2000) return;
+  const h = marketHistory(), nowMin = Math.floor(Date.now() / 60e3);
+  let count = Object.keys(h.items).length, changed = false;
+  for (const r of rows) {
+    if (!Array.isArray(r)) continue;
+    const [key, name, cat, price, qty] = r;
+    if (typeof key !== 'string' || key.length > 100 || !/.\|(GOLD|DIAMONDS)$/.test(key)) continue;
+    if (typeof name !== 'string' || !name || name.length > 80 || typeof cat !== 'string' || cat.length > 80) continue;
+    if (!Number.isFinite(price) || price <= 0 || price > 1e12) continue;
+    let it = h.items[key];
+    if (!it) {
+      if (count >= MKT_MAX_ITEMS) continue;
+      it = h.items[key] = { n: name, c: cat, o: [] };
+      count++;
+    }
+    Object.assign(it, { n: name, c: cat || it.c });
+    const ob = [nowMin, price, Number.isFinite(qty) && qty > 0 ? Math.min(Math.floor(qty), 1e9) : 0];
+    const last = it.o[it.o.length - 1];
+    if (last && nowMin - last[0] < MKT_SESSION_MIN) it.o[it.o.length - 1] = ob;
+    else { it.o.push(ob); it.o = compactMarketObs(it.o, nowMin); }
+    changed = true;
+  }
+  if (!changed) return;
+  clearTimeout(mktSaveTimer);
+  mktSaveTimer = setTimeout(saveMarketNow, 3000);
+  if (!mktSendTimer) mktSendTimer = setTimeout(() => { mktSendTimer = null; views.forEach(v => sendMarketHistory(v.webContents)); }, 1000);
+});
+ipcMain.on('pb:market-history-want', e => { if (Number.isInteger(viewSlot(e))) sendMarketHistory(e.sender); });
 ipcMain.on('pb:reload', (_, i) => views[i]?.webContents.reload());
 ipcMain.on('pb:reload-all', () => views.forEach(v => v.webContents.reload()));
 // Visual PokeBoard ↔ design original do jogo: troca o CSS dos painéis na hora, sem recarregar o jogo.

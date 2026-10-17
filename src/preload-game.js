@@ -153,6 +153,16 @@ window.addEventListener('pb:dock-order-save', () => {
   try { ipcRenderer.send('pb:set-dock-order', JSON.parse(document.documentElement.dataset.pbDockOrder || '[]')); } catch {}
 });
 
+// Histórico de preços do Mercado (market-history.js, no mundo da página): as observações vão para o main, que guarda
+// um histórico só para todas as contas; ele volta inteiro para a página, numa chamada à função dela.
+window.addEventListener('pb:mkt-obs', () => {
+  try { ipcRenderer.send('pb:market-obs', JSON.parse(document.documentElement.dataset.pbMktObs || '[]')); } catch {}
+});
+window.addEventListener('pb:mkt-hist-want', () => ipcRenderer.send('pb:market-history-want'));
+ipcRenderer.on('pb:market-history', (_, h) => {
+  webFrame.executeJavaScript(`window.__pbMarketHistory?.(${JSON.stringify(h)})`).catch(() => {});
+});
+
 // Antes dos scripts do jogo: o hook (observa os dados) e o limitador de quadros da Economia.
 for (const name of ['hook', 'fps']) {
   const src = ipcRenderer.sendSync('pb:inject-source', name);
@@ -160,7 +170,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }
