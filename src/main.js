@@ -336,7 +336,13 @@ function createView(slot) {
   // A página nova pode voltar ao zoom padrão: reaplica o do painel.
   wc.on('did-navigate', () => applyZoom(indexOfSlot(slot)));
   wc.on('dom-ready', () => applyZoom(indexOfSlot(slot)));
-  wc.on('did-start-navigation', () => { if (afkSessions.has(slot)) stopAfk(slot, 'Painel recarregado; modo AFK encerrado.'); });
+  // Só uma página nova no frame principal (recarga, troca de endereço) conta como recarga. O mesmo evento também vem
+  // quando o jogo troca a URL sem recarregar (pushState, #) e quando um iframe navega (chat, vídeos, Cloudflare):
+  // nesses casos o painel continua o mesmo e o AFK segue.
+  wc.on('did-start-navigation', e => {
+    if (!e.isMainFrame || e.isSameDocument) return;
+    if (afkSessions.has(slot)) stopAfk(slot, 'Painel recarregado; modo AFK encerrado.');
+  });
   wc.on('render-process-gone', () => { if (afkSessions.has(slot)) stopAfk(slot, 'Painel interrompido; modo AFK encerrado.'); });
 
   // PB_DEBUG=1 repete no terminal os avisos e erros do console do painel (para testar a Fase 0).
