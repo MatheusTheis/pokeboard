@@ -38,6 +38,7 @@ O PokeBoard é um app desktop (Electron) que abre até 4 contas do jogo lado a l
 | **Hunt Analyzer** | Abre num lugar livre da tela; "Capturados" abre o log de capturas e "Derrotados" abre a Pokédex do jogo na ficha do Pokémon da hunt. |
 | **Chat compacto** | **▾** no cabeçalho esconde a janela e deixa apenas um ícone no canto inferior esquerdo para reabrir. A escolha é lembrada por conta. |
 | **Treinador de Prestígio** | Botão largo para iniciar/parar a rota. Um card no Hunt Analyzer (ou no canto da tela, se ele estiver fechado) mostra a etapa, a hunt e quantos faltam. Abrir outras telas não para a rota; sair da hunt para outro lugar para. |
+| **Breeding** | A ordem da caixa de Pokémon (IV, Qualidade ou Nível) fica lembrada em cada conta; antes o jogo sempre voltava para IV ao reabrir. |
 | **Log de capturas** | ✨ Shiny, ordenar por IV ou por qualidade, com o IV sempre inteiro na tabela. |
 | **Ficha do Pokémon** | Card com tipos, raridade, hunt, evolução, situação na sua Pokédex e estatísticas base. |
 | **HUD minimalista** | ▴/▾ no cartão do jogador recolhe o time e deixa só o Pokémon ativo. |

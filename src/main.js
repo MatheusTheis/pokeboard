@@ -63,6 +63,7 @@ const INJECT = {
   chat: path.join(__dirname, 'inject', 'chat-plus.js'),
   activity: path.join(__dirname, 'inject', 'activity.js'),
   autoBall: path.join(__dirname, 'inject', 'auto-ball.js'),
+  breeding: path.join(__dirname, 'inject', 'breeding-plus.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
