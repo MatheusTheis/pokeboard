@@ -66,6 +66,7 @@ const INJECT = {
   breeding: path.join(__dirname, 'inject', 'breeding-plus.js'),
   marketHist: path.join(__dirname, 'inject', 'market-history.js'),
   dailyKill: path.join(__dirname, 'inject', 'daily-kill-plus.js'),
+  battleView: path.join(__dirname, 'inject', 'battle-view.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
