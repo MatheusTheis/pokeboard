@@ -219,6 +219,14 @@ $('#btnRoute').onclick = async () => {
     routeName.value = previous.pokemon;
     routeLevel.value = previous.level;
     routeTarget.value = previous.target;
+    // O Pokémon da última rota ainda é o primeiro do time (o que está na hunt), talvez já evoluído: o nível salvo
+    // ficou para trás, então vale a forma e o nível de agora.
+    const hunter = routeParty[0], was = String(previous.pokemon).trim().toLowerCase();
+    if (hunter && [hunter.name, ...(info?.from?.[hunter.name] || [])].some(n => n.toLowerCase() === was)) {
+      routeName.value = hunter.name;
+      routeLevel.value = hunter.level;
+      if (!(Number(previous.target) > hunter.level)) routeTarget.value = suggestTarget(hunter.name, hunter.level);
+    }
   } else if (act) { routeName.value = act.name; routeLevel.value = act.level; routeTarget.value = suggestTarget(act.name, act.level); }
   routeName.focus();
   routeName.select();

@@ -664,7 +664,7 @@ ipcMain.on('pb:route-show', (_, q) => {
 });
 // Time da conta (HUD do jogo, só leitura) e a lista de Pokémon do jogo (creatures.json já carregado no painel).
 ipcMain.handle('pb:route-info', async () => {
-  const i = routeAccount(), wc = views[i]?.webContents, empty = { account: i, party: [], names: [], evo: {} };
+  const i = routeAccount(), wc = views[i]?.webContents, empty = { account: i, party: [], names: [], evo: {}, from: {} };
   if (!wc || wc.isDestroyed()) return empty;
   try {
     const info = await wc.executeJavaScript(`(() => {
@@ -674,9 +674,16 @@ ipcMain.handle('pb:route-info', async () => {
         active: b.classList.contains('active'),
       })).filter(p => p.name);
       const list = window.__pbCache?.['/game/creatures.json']?.data?.creatures || [];
-      const evo = {};
-      for (const c of list) if (party.some(p => p.name === c.name)) evo[c.name] = c.evolveLevel || 0;
-      return { party, names: [...new Set(list.map(c => c.name))].sort(), evo };
+      // evo: nível da próxima evolução; from: as formas anteriores (Charmeleon -> [Charmander]).
+      const evo = {}, from = {}, before = new Map(list.filter(c => c.evolvesToId).map(c => [c.evolvesToId, c]));
+      for (const c of list) {
+        if (!party.some(p => p.name === c.name)) continue;
+        evo[c.name] = c.evolveLevel || 0;
+        const line = [];
+        for (let b = before.get(c.pokeId), guard = 0; b && guard < 5; b = before.get(b.pokeId), guard++) line.push(b.name);
+        from[c.name] = line;
+      }
+      return { party, names: [...new Set(list.map(c => c.name))].sort(), evo, from };
     })()`, true);
     return { account: i, ...empty, ...info };
   } catch { return empty; }
