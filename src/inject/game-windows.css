@@ -1793,3 +1793,40 @@
 #pb-mh dd { margin: 0; font-weight: 700; text-align: right; white-space: nowrap; }
 #pb-mh dd small { color: var(--pb-ink-muted); font-weight: 500; }
 #pb-mh .pbmh-foot { margin: 8px 10px 0; color: var(--pb-ink-muted); font-size: 11px; }
+
+/* Daily Kill: "Ir à hunt" em cada Pokémon do dia e o menu de hunts (daily-kill-plus.js; mesmo visual do menu da Pokédex). */
+.game-root .dk-window .pb-dk-go {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-border);
+  font: 600 13px/16px var(--pb-font-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.game-root .dk-window .pb-dk-go:hover:not(:disabled) { filter: brightness(1.12); box-shadow: var(--pb-frame-focus); }
+.game-root .dk-window .pb-dk-go:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 2px; }
+.game-root .dk-window .pb-dk-go:disabled { opacity: .45; cursor: default; }
+#pb-dk-menu {
+  position: fixed;
+  z-index: 2147483000;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 0 0 6px;
+  background: var(--pb-surface);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink), 6px 6px 0 0 var(--pb-shadow-ink);
+  font: 500 14px/18px var(--pb-font-body);
+}
+#pb-dk-menu .pb-dk-menu-h { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; padding: 8px 12px 12px; background: var(--pb-dex-red); color: var(--pb-on-red); box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep); font: 400 9px/14px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-dk-menu .pb-dk-menu-h small { font: 600 14px/16px var(--pb-font-body); text-transform: none; }
+#pb-dk-menu button { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; width: 100%; padding: 6px 12px; border: 0; background: transparent; color: var(--pb-ink); font: inherit; text-align: left; cursor: pointer; }
+#pb-dk-menu button span { color: var(--pb-pika-yellow); font-size: 12px; white-space: nowrap; }
+#pb-dk-menu button:is(:hover, :focus-visible):not(:disabled) { outline: none; background: var(--pb-surface-raised); box-shadow: inset 4px 0 0 0 var(--pb-pika-yellow); }
+#pb-dk-menu button:disabled { opacity: .5; cursor: default; }
+#pb-dk-menu p { margin: 4px 12px; color: var(--pb-ink-muted); }
