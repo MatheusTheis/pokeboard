@@ -11,7 +11,8 @@
   const DOCK = '.game-root .game-dock';    // só com o jogo aberto (fora do login)
   const STAGE = '.cbt-stage';             // tela do modo carta
   const TAG = '.cbt-stage > .cbt-tag';    // etiqueta "Modo carta" do jogo
-  const CITY_HUD = '.field-hud';          // só aparece em cidade/ginásio no 3D
+  // Mapas em que o jogo fica sempre no 3D (o nome do mapa é um estado da mesma tela; ginásios são gym_*).
+  const CITY_MAPS = new Set(['cerulean', 'pewter', 'viridian', 'cassino', 'arena_pvp', 'goldenrod', 'shopping']);
   const STORE = 'ui:battleView';          // onde o jogo guarda a escolha: "cards" ou "3d"
   const VIEWS = new Set(['cards', '3d']);
   const CHECK_MS = 500;
@@ -19,9 +20,9 @@
   const fiberOf = el => { const k = Object.keys(el).find(x => x.startsWith('__reactFiber$')); return k ? el[k] : null; };
   const stored = () => { try { return localStorage.getItem(STORE) === 'cards' ? 'cards' : '3d'; } catch { return '3d'; } };
 
-  // Fila do useState da escolha na tela principal: subindo pela árvore do React, o primeiro componente com um estado
+  // Tela principal e a fila do useState da escolha: subindo pela árvore do React, o primeiro componente com um estado
   // "cards"/"3d"; precisa ser um só e bater com o guardado (o jogo começa com ele e guarda a cada troca).
-  function findQueue() {
+  function findMain() {
     const want = stored();
     for (const sel of [STAGE, '.game-root .game-hud-tl', DOCK]) {
       const el = document.querySelector(sel);
@@ -33,14 +34,22 @@
         }
         if (!hits.length) continue;
         const same = hits.filter(q => q.lastRenderedState === want);
-        if (same.length === 1) return same[0];
+        if (same.length === 1) return { fiber: f, queue: same[0] };
         break;  // ambíguo: não mexe
       }
     }
     return null;
   }
+  // Na cidade (ou ginásio): algum estado da tela principal é o nome de um desses mapas.
+  function inCity(fiber) {
+    for (let h = fiber.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+      const v = h.queue?.lastRenderedState;
+      if (typeof v === 'string' && (CITY_MAPS.has(v) || v.startsWith('gym_'))) return true;
+    }
+    return false;
+  }
   function setView(v) {
-    const q = findQueue();
+    const q = findMain()?.queue;
     if (!q) { console.warn('[PokeBoard] modo carta/3D: não achei a escolha do jogo'); return; }
     q.dispatch(v);
     try { localStorage.setItem(STORE, v); } catch {}
@@ -68,7 +77,8 @@
       gameTag.setAttribute('data-pb-view', 'cards');
       asButton(gameTag, 'Trocar para o modo 3D');
     }
-    const show = !!root && !!document.querySelector(DOCK) && !stage && stored() === '3d' && !document.querySelector(CITY_HUD);
+    let show = !!root && !!document.querySelector(DOCK) && !stage && stored() === '3d';
+    if (show) { const main = findMain(); show = !!main && !inCity(main.fiber); }
     if (show && tag3d.parentElement !== root) root.append(tag3d);
     else if (!show && tag3d.isConnected) tag3d.remove();
   }, CHECK_MS);
