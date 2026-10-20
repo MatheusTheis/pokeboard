@@ -1,5 +1,5 @@
 // Processo principal: janela do board + 4 painéis do jogo, cada um com sessão própria.
-const { app, BrowserWindow, WebContentsView, Menu, Tray, dialog, ipcMain, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, Tray, Notification, dialog, ipcMain, safeStorage, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { createRecorder } = require('./recorder');
@@ -67,6 +67,7 @@ const INJECT = {
   marketHist: path.join(__dirname, 'inject', 'market-history.js'),
   dailyKill: path.join(__dirname, 'inject', 'daily-kill-plus.js'),
   battleView: path.join(__dirname, 'inject', 'battle-view.js'),
+  bagAlert: path.join(__dirname, 'inject', 'bag-alert.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -619,6 +620,36 @@ ipcMain.on('pb:market-obs', (e, rows) => {
   if (!mktSendTimer) mktSendTimer = setTimeout(() => { mktSendTimer = null; views.forEach(v => sendMarketHistory(v.webContents)); }, 1000);
 });
 ipcMain.on('pb:market-history-want', e => { if (Number.isInteger(viewSlot(e))) sendMarketHistory(e.sender); });
+
+// ---------- bolsa cheia (bag-alert.js) ----------
+// Quando o Depósito e a Bolsa de uma conta enchem (o Auto-Catch do jogo para): a barra de tarefas pisca até você
+// voltar à janela e sai uma notificação do Windows; clicar nela abre o PokeBoard. O cartão no meio da tela é do painel.
+const bagFull = new Set();         // contas com a bolsa cheia agora: avisa de novo só depois de ela esvaziar
+const bagNotices = new Set();      // notificações abertas (sem referência, o clique pode se perder)
+ipcMain.on('pb:bag-full', (e, info) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0) return;
+  const count = Number(info?.count), max = Number(info?.max);
+  if (!Number.isFinite(count) || !Number.isFinite(max) || max <= 0) return;
+  if (count < max) { bagFull.delete(slot); return; }
+  if (bagFull.has(slot)) return;
+  bagFull.add(slot);
+  const name = state.accounts[slot]?.name || `Conta ${slot + 1}`;
+  if (win && !win.isDestroyed() && !win.isFocused()) {
+    win.flashFrame(true);
+    win.once('focus', () => { if (!win.isDestroyed()) win.flashFrame(false); });
+  }
+  if (!Notification.isSupported()) return;
+  const n = new Notification({
+    title: `Bolsa cheia · ${name}`,
+    body: `${count.toLocaleString('pt-BR')}/${max.toLocaleString('pt-BR')} Pokémon no Depósito e na Bolsa. O Auto-Catch parou: venda ou solte Pokémon.`,
+    icon: ICON_PATH,
+  });
+  bagNotices.add(n);
+  n.on('click', () => { showWindow(); views[indexOfSlot(slot)]?.webContents.focus(); });
+  n.on('close', () => bagNotices.delete(n));
+  n.show();
+});
 ipcMain.on('pb:reload', (_, i) => views[i]?.webContents.reload());
 ipcMain.on('pb:reload-all', () => views.forEach(v => v.webContents.reload()));
 // Visual PokeBoard ↔ design original do jogo: troca o CSS dos painéis na hora, sem recarregar o jogo.

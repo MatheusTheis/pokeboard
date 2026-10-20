@@ -153,6 +153,12 @@ window.addEventListener('pb:dock-order-save', () => {
   try { ipcRenderer.send('pb:set-dock-order', JSON.parse(document.documentElement.dataset.pbDockOrder || '[]')); } catch {}
 });
 
+// Bolsa cheia (bag-alert.js): o cartão no meio da tela é da página; daqui vai para o main piscar a barra de tarefas
+// e mostrar a notificação do Windows.
+window.addEventListener('pb:bag', () => {
+  try { ipcRenderer.send('pb:bag-full', JSON.parse(document.documentElement.dataset.pbBag || '{}')); } catch {}
+});
+
 // Histórico de preços do Mercado (market-history.js, no mundo da página): as observações vão para o main, que guarda
 // um histórico só para todas as contas; ele volta inteiro para a página, numa chamada à função dela.
 window.addEventListener('pb:mkt-obs', () => {
@@ -170,7 +176,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView', 'bagAlert']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }
