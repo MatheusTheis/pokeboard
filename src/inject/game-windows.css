@@ -518,31 +518,229 @@
 }
 .game-root .stk-window .stk-kcell.top1 { box-shadow: var(--pb-frame-focus) !important; }
 
-/* ---------- Breeding ---------- */
-.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc, .brd-analysis-empty, .brd-steps, .brd-stones) {
-  border: 0 !important;
-  border-radius: 0 !important;
-  background: var(--pb-surface) !important;
-  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
-}
-.game-root .brd-window :is(.brd-parent, .brd-egg-slot, .brd-box-poke, .brd-stone-item, .brd-bonus-item, .brd-cost-item) {
+/* ---------- Breeding (.brd-window, também .nsh-window) ----------
+   A tela nova do jogo desenha os painéis com moldura dourada recortada (::before/::after com clip-path), títulos em
+   Cinzel com degradê dourado e tudo arredondado. Aqui: painéis lisos com moldura de pixel e sombra dura, títulos em
+   pixel, células no tom da tela, barras em segmentos, botões vermelhos. O banner com a ilustração fica. */
+.game-root .brd-window::before,
+.game-root .brd-window :is(.brd-stage, .brd-card, .brd-res, .brd-inc-wrap, .brd-col-box)::before,
+.game-root .brd-window :is(.brd-stage, .brd-card, .brd-res, .brd-inc-wrap, .brd-col-box)::after,
+.game-root .brd-window :is(.brd-banner-gem, .brd-breed-frame, .brd-egg-glow, .brd-reveal-rays, .brd-eggpop-rays) { display: none !important; }
+
+/* Painéis. */
+.game-root .brd-window :is(.brd-stage, .brd-card, .brd-res, .brd-inc-wrap, .brd-col-box) {
   border: 0 !important;
   border-radius: 0 !important;
   clip-path: none !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  filter: none !important;
+}
+/* Células dentro dos painéis. */
+.game-root .brd-window :is(.brd-parent, .brd-delta-cell, .brd-res-item, .brd-stone-item, .brd-egg, .brd-box-poke, .brd-box, .brd-inc) {
+  border: 0 !important;
+  border-radius: 0 !important;
   background: var(--pb-screen) !important;
   box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+  transform: none !important;
 }
-.game-root .brd-window :is(.brd-parent, .brd-egg-slot, .brd-box-poke, .brd-stone-item)::before { display: none !important; }
-.game-root .brd-window :is(.brd-box-poke, .brd-parent).on,
-.game-root .brd-window .brd-box-poke:is(.sel, .picked) { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
-.game-root .brd-window :is(.brd-parent-name, .brd-box-name, .brd-stone-name, .brd-step-tx, .brd-meter-label, .brd-bonus-txt) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; letter-spacing: 0 !important; }
-.game-root .brd-window :is(.brd-box-meta, .brd-hint, .brd-meter-val, .brd-parent-lv) { color: var(--pb-ink-muted) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }
-.game-root .brd-window :is(.brd-balance, .brd-bal) { border-radius: 0 !important; box-shadow: var(--pb-frame-ink) !important; background: var(--pb-dex-red-deep) !important; color: var(--pb-on-red) !important; }
-.game-root .brd-window :is(.brd-link, .brd-link-core, .brd-mystery-orb) { filter: none !important; }
-/* Cantoneiras e linhas douradas das colunas (pseudo-elementos do jogo). */
-.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc)::before,
-.game-root .brd-window :is(.brd-col, .brd-box, .brd-bonus, .brd-inc)::after,
-.game-root .brd-window .brd-col-head::after { display: none !important; }
+.game-root .brd-window :is(.brd-box, .brd-inc) { box-shadow: var(--pb-frame-ink), inset 0 2px 0 0 rgba(0, 0, 0, .35) !important; }
+.game-root .brd-window .brd-parent.filled { background: var(--pb-surface-raised) !important; }
+.game-root .brd-window .brd-parent.filled.shiny { box-shadow: 0 0 0 2px var(--pb-pika-yellow), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window .brd-parent.filled.donor { box-shadow: 0 0 0 2px var(--pb-type-ghost), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window :is(.brd-res-item, .brd-stone-item).missing { box-shadow: 0 0 0 2px var(--pb-dex-red-ink), var(--pb-shadow-bevel) !important; }
+
+/* Títulos: pixel, sem degradê nem brilho; o losango vira um quadradinho vermelho. */
+.game-root .brd-window :is(.brd-sec-head, .brd-card-head, .brd-box-title) {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--pb-ink) !important;
+  text-shadow: none !important;
+  font: 400 10px/16px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+}
+.game-root .brd-window :is(.brd-sec-head, .brd-card-head, .brd-box-title)::before {
+  width: 6px !important;
+  height: 6px !important;
+  background: var(--pb-dex-red) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.game-root .brd-window .brd-card-val { color: var(--pb-pika-yellow) !important; font: 400 12px/16px var(--pb-font-pixel) !important; -webkit-text-fill-color: currentColor !important; }
+.game-root .brd-window .brd-card-val small { color: var(--pb-ink-muted) !important; font: 500 11px/14px var(--pb-font-body) !important; }
+
+/* Texto: corpo do PokeBoard no lugar do Cinzel e do itálico. */
+.game-root .brd-window :is(.brd-banner-sub, .brd-step-tx, .brd-parent-name, .brd-box-name, .brd-stone-name, .brd-path-lbl, .brd-res-val, .brd-egg-name, .brd-confirm-title, .brd-reveal-title, .brd-eggpop-cap, .brd-breed-lbl) {
+  font-family: var(--pb-font-body) !important;
+  text-shadow: none !important;
+  letter-spacing: 0 !important;
+}
+.game-root .brd-window :is(.brd-banner-sub, .brd-parent-name, .brd-box-name, .brd-stone-name, .brd-path-lbl, .brd-res-val, .brd-egg-name) { color: var(--pb-ink) !important; }
+.game-root .brd-window :is(.brd-step-tx small, .brd-parent-lv, .brd-parent-empty, .brd-card-empty, .brd-card-note, .brd-res-note, .brd-action-hint, .brd-inc-hint, .brd-egg-counts, .brd-box-meta, .brd-box-empty, .brd-child p, .brd-qbar-labels, .brd-egg-slot, .brd-hint) {
+  color: var(--pb-ink-muted) !important;
+  font-family: var(--pb-font-body) !important;
+  font-style: normal !important;
+  text-shadow: none !important;
+}
+.game-root .brd-window .brd-res-lbl {
+  background: none !important;
+  border-bottom: 2px solid var(--pb-surface-raised) !important;
+  color: var(--pb-ink-muted) !important;
+  font: 400 8px/12px var(--pb-font-pixel) !important;
+  letter-spacing: 0 !important;
+}
+
+/* Banner: a ilustração continua; saem as linhas douradas. Passos viram abas. */
+.game-root .brd-window .brd-banner { background: none !important; box-shadow: inset 0 -2px 0 0 var(--pb-surface-raised) !important; }
+.game-root .brd-window .brd-steps { border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: none !important; }
+.game-root .brd-window .brd-step {
+  opacity: 1 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  box-shadow: var(--pb-frame-border) !important;
+}
+.game-root .brd-window .brd-step:not(.on) .brd-step-tx { opacity: .7; }
+.game-root .brd-window .brd-step.on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .brd-window .brd-step-n {
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  color: var(--pb-ink-muted) !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  font: 400 9px/12px var(--pb-font-pixel) !important;
+}
+.game-root .brd-window .brd-step.on .brd-step-n { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .brd-window .brd-step.done .brd-step-n { background: var(--pb-success) !important; color: var(--pb-on-success) !important; }
+.game-root .brd-window .brd-bal { border: 0 !important; border-radius: 0 !important; backdrop-filter: none !important; background: var(--pb-dex-red-deep) !important; color: var(--pb-on-red) !important; box-shadow: var(--pb-frame-ink) !important; }
+
+/* Par e filho: vagas e "?" quadrados; setas e "+" sem dourado. */
+.game-root .brd-window :is(.brd-parent-ghost, .brd-mystery-orb, .brd-link-core) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-bevel) !important;
+  color: var(--pb-ink-muted) !important;
+  text-shadow: none !important;
+}
+.game-root .brd-window :is(.brd-parent-ghost, .brd-mystery-q, .brd-mystery-orb.idle i) { font-family: var(--pb-font-pixel) !important; font-weight: 400 !important; color: var(--pb-ink-muted) !important; text-shadow: none !important; }
+.game-root .brd-window .brd-mystery-q { font-size: 32px !important; }
+.game-root .brd-window .brd-link.on .brd-link-core { background: var(--pb-surface-raised) !important; color: var(--pb-pika-yellow) !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .brd-window .brd-stage-child.shiny .brd-mystery-orb { box-shadow: 0 0 0 2px var(--pb-pika-yellow) !important; }
+.game-root .brd-window .brd-arrow::before { background: var(--pb-border) !important; filter: none !important; }
+.game-root .brd-window .brd-arrow::after { border-radius: 0 !important; background: var(--pb-pika-yellow) !important; box-shadow: none !important; }
+.game-root .brd-window .brd-parent-x { color: var(--pb-ink-muted) !important; }
+.game-root .brd-window .brd-parent-x:hover { color: var(--pb-dex-red-ink) !important; }
+.game-root .brd-window :is(.brd-hint, .brd-confirm-warn).warn::before { border-radius: 0 !important; background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; font-family: var(--pb-font-body) !important; }
+
+/* Etiquetas. */
+.game-root .brd-window :is(.brd-chip, .brd-rank, .brd-shiny, .brd-inc-count, .brd-donor-tag, .brd-parent-tag, .brd-box-pick) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-ink) !important;
+  text-shadow: none !important;
+  font-family: var(--pb-font-body) !important;
+  letter-spacing: 0 !important;
+  animation: none !important;
+}
+.game-root .brd-window :is(.brd-chip, .brd-inc-count, .brd-parent-tag) { background: var(--pb-screen) !important; }
+.game-root .brd-window .brd-chip:not(.q) { color: var(--pb-ink) !important; }
+.game-root .brd-window .brd-box-pick { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .brd-window .brd-shiny.guaranteed { background: var(--pb-pika-yellow) !important; color: var(--pb-on-yellow) !important; }
+.game-root .brd-window .brd-shiny.chance { background: var(--pb-screen) !important; color: var(--pb-ink-muted) !important; }
+
+/* Barras: trilho escuro com moldura e preenchimento em segmentos, como nas outras janelas. */
+.game-root .brd-window .brd-tube {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-bar-track) !important;
+  box-shadow: 0 0 0 2px var(--pb-border) !important;
+}
+.game-root .brd-window :is(.brd-tube-fill, .brd-qbar-range) { border-radius: 0 !important; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important; }
+.game-root .brd-window .brd-qbar-range { background: repeating-linear-gradient(90deg, var(--pb-success) 0 6px, transparent 6px 8px) !important; }
+.game-root .brd-window .brd-tube.iv .brd-tube-fill { background: repeating-linear-gradient(90deg, var(--pb-poke-blue) 0 6px, transparent 6px 8px) !important; }
+.game-root .brd-window .brd-egg.ready .brd-tube-fill { background: repeating-linear-gradient(90deg, var(--pb-bar-full) 0 6px, transparent 6px 8px) !important; }
+.game-root .brd-window :is(.brd-tube-fill, .brd-qbar-range)::before,
+.game-root .brd-window :is(.brd-tube-fill, .brd-qbar-range)::after { display: none !important; }
+.game-root .brd-window .brd-qbar-base { background: var(--pb-ink) !important; box-shadow: none !important; }
+.game-root .brd-window .brd-delta-cell i { background: var(--pb-pika-yellow) !important; }
+
+/* Recursos. */
+.game-root .brd-window .brd-path-opt { border-radius: 0 !important; }
+.game-root .brd-window :is(.brd-double, .brd-excess, .brd-box-guide) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface-raised) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-border) !important;
+  animation: none !important;
+}
+.game-root .brd-window .brd-excess { box-shadow: 0 0 0 2px var(--pb-pika-yellow) !important; }
+.game-root .brd-window .brd-box-guide::before { border-radius: 0 !important; background: var(--pb-poke-blue) !important; color: var(--pb-on-yellow) !important; font-family: var(--pb-font-body) !important; }
+
+/* Incubadora. */
+.game-root .brd-window .brd-egg.ready { box-shadow: 0 0 0 2px var(--pb-success), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window .brd-egg.shiny { box-shadow: 0 0 0 2px var(--pb-pika-yellow), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window .brd-egg.new { animation: none !important; box-shadow: var(--pb-frame-focus) !important; }
+.game-root .brd-window .brd-egg-slot {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-screen) !important;
+  box-shadow: inset 0 0 0 2px var(--pb-surface-raised) !important;
+}
+.game-root .brd-window :is(.brd-egg-hatch, .brd-egg-instant) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  animation: none !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .brd-window .brd-egg-hatch { background: var(--pb-success) !important; color: var(--pb-on-success) !important; }
+.game-root .brd-window .brd-egg-instant { background: var(--pb-surface-raised) !important; color: var(--pb-pika-yellow) !important; }
+
+/* Botão de criar o ovo: o quadro ornamentado (imagem) sai; fica o botão vermelho das outras janelas. */
+.game-root .brd-window .brd-breed-btn {
+  min-height: 56px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-dex-red) !important;
+  color: var(--pb-on-red) !important;
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  text-shadow: none !important;
+  font: 700 16px/20px var(--pb-font-body) !important;
+}
+.game-root .brd-window .brd-breed-btn:disabled { background: var(--pb-surface-raised) !important; color: var(--pb-ink-muted) !important; filter: none !important; opacity: 1 !important; }
+
+/* Caixa de Pokémon. */
+.game-root .brd-window .brd-box-poke:hover:not(:disabled):not(.dim) { box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; transform: none !important; }
+.game-root .brd-window .brd-box-poke.on { background: var(--pb-surface-raised) !important; box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window .brd-box-poke.shiny:not(.on) { box-shadow: 0 0 0 2px var(--pb-pika-yellow), var(--pb-shadow-bevel) !important; }
+.game-root .brd-window .brd-box-sprite-skel { border-radius: 0 !important; background: var(--pb-surface) !important; }
+.game-root .brd-window :is(.brd-box-search, .brd-box-sort) { border-radius: 0 !important; }
+.game-root .brd-window :is(.brd-body, .brd-box)::-webkit-scrollbar-thumb { border-radius: 0 !important; background: var(--pb-border) !important; }
+
+/* Confirmação, revelação e avisos. */
+.game-root .brd-window :is(.brd-confirm-card, .brd-reveal-card, .brd-toast, .brd-err) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-surface) !important;
+  color: var(--pb-ink) !important;
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink) !important;
+}
+.game-root .brd-window .brd-err { color: var(--pb-dex-red-ink) !important; box-shadow: 0 0 0 2px var(--pb-dex-red-ink) !important; }
+.game-root .brd-window .brd-reveal-card.shiny { box-shadow: 0 0 0 2px var(--pb-pika-yellow), 8px 8px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .brd-window :is(.brd-confirm-title, .brd-reveal-title) { color: var(--pb-pika-yellow) !important; font: 400 12px/18px var(--pb-font-pixel) !important; }
+.game-root .brd-window :is(.brd-confirm, .brd-reveal, .brd-eggpop) { border-radius: 0 !important; }
+.game-root .brd-window .brd-confirm-costs span { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; color: var(--pb-pika-yellow) !important; box-shadow: var(--pb-frame-border) !important; }
+.game-root .brd-window :is(.brd-confirm-yes, .brd-confirm-no, .brd-reveal-ok) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: var(--pb-frame-ink), 3px 3px 0 0 var(--pb-shadow-ink) !important;
+  font-family: var(--pb-font-body) !important;
+}
+.game-root .brd-window :is(.brd-confirm-yes, .brd-reveal-ok) { background: var(--pb-dex-red) !important; color: var(--pb-on-red) !important; }
+.game-root .brd-window .brd-confirm-no { background: var(--pb-surface-raised) !important; color: var(--pb-ink) !important; }
+.game-root .brd-window .brd-reveal-meter { border: 0 !important; border-radius: 0 !important; background: var(--pb-bar-track) !important; box-shadow: 0 0 0 2px var(--pb-border) !important; }
+.game-root .brd-window .brd-reveal-meter i { background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px) !important; box-shadow: none !important; }
 
 /* ---------- Equipe ---------- */
 .game-root .team-window .team-slot {
