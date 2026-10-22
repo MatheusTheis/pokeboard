@@ -1830,3 +1830,42 @@
 #pb-dk-menu button:is(:hover, :focus-visible):not(:disabled) { outline: none; background: var(--pb-surface-raised); box-shadow: inset 4px 0 0 0 var(--pb-pika-yellow); }
 #pb-dk-menu button:disabled { opacity: .5; cursor: default; }
 #pb-dk-menu p { margin: 4px 12px; color: var(--pb-ink-muted); }
+
+/* Última hunt (last-hunt.js): ícone do Pokémon da hunt de onde você saiu, à esquerda do Hunt Analyzer, com as mesmas
+   regras de posição dele (acima); --pb-ha-w é a largura dele, medida em JS. Clicar volta para a hunt. */
+.game-root #pb-last-hunt {
+  position: fixed;
+  top: var(--pb-top);
+  right: calc(16px + 190px + 10px + var(--pb-ha-w, 150px) + 10px);
+  z-index: 60;
+  height: 35px;
+  min-width: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink);
+  font: 400 10px/14px var(--pb-font-pixel);
+  cursor: pointer;
+}
+#pb-last-hunt[hidden] { display: none; }
+#pb-last-hunt img { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; }
+#pb-last-hunt img[hidden] { display: none; }
+#pb-last-hunt::after {  /* seta de "voltar" no canto */
+  content: "↩";
+  position: absolute;
+  right: -4px;
+  bottom: -6px;
+  padding: 0 2px;
+  background: var(--pb-pika-yellow);
+  color: var(--pb-on-yellow);
+  box-shadow: 0 0 0 1px var(--pb-shadow-ink);
+  font: 700 10px/12px var(--pb-font-body);
+}
+#pb-last-hunt:hover:not(:disabled) { filter: brightness(1.12); box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink); }
+#pb-last-hunt:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-last-hunt:disabled { opacity: .5; cursor: progress; }
