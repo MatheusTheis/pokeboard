@@ -350,6 +350,13 @@ function createView(slot) {
   });
   wc.on('render-process-gone', () => { if (afkSessions.has(slot)) stopAfk(slot, 'Painel interrompido; modo AFK encerrado.'); });
 
+  // Últimos erros do console de cada conta (só do jogo), para o registro da tela "algo travou" (pb:game-crashed).
+  wc.on('console-message', e => {
+    if (e.level !== 'error' || (/^https?:/.test(e.sourceId) && !isGameUrl(e.sourceId))) return;
+    const list = consoleErrors.get(slot) || [];
+    list.push(`${new Date().toISOString()} ${e.message} (${e.sourceId}:${e.lineNumber})`);
+    consoleErrors.set(slot, list.slice(-40));
+  });
   // PB_DEBUG=1 repete no terminal os avisos e erros do console do painel (para testar a Fase 0).
   // Ignora iframes de terceiros (ex.: o captcha da Cloudflare no login), que só fazem barulho.
   if (process.env.PB_DEBUG) wc.on('console-message', e => {
@@ -621,6 +628,29 @@ ipcMain.on('pb:market-obs', (e, rows) => {
   if (!mktSendTimer) mktSendTimer = setTimeout(() => { mktSendTimer = null; views.forEach(v => sendMarketHistory(v.webContents)); }, 1000);
 });
 ipcMain.on('pb:market-history-want', e => { if (Number.isInteger(viewSlot(e))) sendMarketHistory(e.sender); });
+
+// ---------- tela "algo travou" do jogo ----------
+// O preload avisa quando o jogo cai na tela de erro dele (e se vai recarregar a conta); guardamos em debug/travou.log
+// os últimos erros do console daquela conta, para achar a causa. O arquivo não passa de ~1 MB (fica o fim).
+const consoleErrors = new Map();  // slot -> últimas linhas de erro do console
+ipcMain.on('pb:game-crashed', (e, info) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0) return;
+  const name = state.accounts[slot]?.name || `Conta ${slot + 1}`;
+  const lines = [
+    `===== ${new Date().toISOString()} · ${name} (conta${slot + 1}) · ${e.sender.getURL()}`,
+    `travou ${Number(info?.count) || 1}x nos últimos 15 min · ${info?.reload ? 'recarregando sozinho' : 'sem recarregar (limite)'}`,
+    ...(consoleErrors.get(slot) || ['(nenhum erro no console)']),
+    '',
+  ];
+  try {
+    const dir = path.join(app.getPath('userData'), 'debug'), file = path.join(dir, 'travou.log');
+    fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(file) && fs.statSync(file).size > 1048576) fs.writeFileSync(file, fs.readFileSync(file, 'utf8').slice(-524288));
+    fs.appendFileSync(file, lines.join('\n') + '\n');
+  } catch (err) { console.error('[PokeBoard] travou.log', err); }
+  consoleErrors.delete(slot);
+});
 
 // ---------- bolsa cheia (bag-alert.js) ----------
 // Quando o Depósito e a Bolsa de uma conta enchem (o Auto-Catch do jogo para): a barra de tarefas pisca até você

@@ -94,6 +94,36 @@ if (location.origin === GAME_ORIGIN) {
     if (user && pass) ipcRenderer.send('pb:cred-offer', { user, pass });
   }, true);
   document.addEventListener('visibilitychange', sync);
+
+  // Tela "Ops, algo travou a tela" (ErrorBoundary do React do jogo): o jogo para ali até alguém clicar em Recarregar,
+  // e o farm para junto. O main guarda o erro em debug/travou.log (pb:game-crashed) e aqui recarregamos a conta
+  // sozinhos em 5 s, no máximo 3 vezes a cada 15 min; se travar mais que isso, a tela fica para você ver.
+  const CRASH_TEXT = /algo travou a tela/i;
+  const CRASH_KEY = 'pb:crash-reloads';
+  const CRASH_MAX = 3, CRASH_WINDOW_MS = 15 * 60e3, CRASH_WAIT_MS = 5000;
+  let crashSeen = false;
+  setInterval(() => {
+    if (crashSeen) return;
+    const alert = [...document.querySelectorAll('body [role="alert"]')].find(el => CRASH_TEXT.test(el.textContent || ''));
+    if (!alert) return;
+    crashSeen = true;
+    let recent = [];
+    try { recent = JSON.parse(sessionStorage.getItem(CRASH_KEY) || '[]').filter(t => Date.now() - t < CRASH_WINDOW_MS); } catch {}
+    const reload = recent.length < CRASH_MAX;
+    ipcRenderer.send('pb:game-crashed', { reload, count: recent.length + 1 });
+    const note = document.createElement('div');
+    note.id = 'pb-crash-note';
+    Object.assign(note.style, { position: 'fixed', left: '50%', bottom: '24px', transform: 'translateX(-50%)', zIndex: '100000',
+      maxWidth: '90vw', padding: '8px 14px', background: '#1C2230', color: '#F4F0E2', boxShadow: '0 0 0 2px #05070A, 4px 4px 0 0 #05070A',
+      font: '600 14px/18px system-ui, sans-serif', textAlign: 'center' });
+    note.textContent = reload
+      ? `PokeBoard: recarregando esta conta em ${CRASH_WAIT_MS / 1000} s (o erro ficou guardado em debug\\travou.log).`
+      : `PokeBoard: travou ${recent.length + 1} vezes em 15 min, não vou recarregar sozinho. O erro ficou guardado em debug\\travou.log.`;
+    document.body.append(note);
+    if (!reload) return;
+    try { sessionStorage.setItem(CRASH_KEY, JSON.stringify([...recent, Date.now()])); } catch {}
+    setTimeout(() => location.reload(), CRASH_WAIT_MS);
+  }, 2000);
 }
 
 // Preferências dos botões nossos no jogo (ex.: HUD minimalista) viram atributos no <html>, que o CSS lê.
