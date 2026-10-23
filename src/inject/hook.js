@@ -17,11 +17,20 @@
     const b = u.searchParams.get('browse'), c = u.searchParams.get('category');
     return b ? `${u.pathname}?browse=${b}` : c && c !== 'All' ? `${u.pathname}?category=${c}` : u.pathname;
   };
-  const store = (url, data) => {
+  // Ações do Mercado (anunciar, comprar, cancelar): guardamos também o que o jogo enviou (req), para o gravador
+  // (PB_RECORD) entender preço, quantidade e taxa; e, se o servidor recusar, a resposta de erro numa chave à parte
+  // ("…#erro", que nenhum extra lê). Só do Mercado; os outros pedidos continuam só com a resposta.
+  const reqOf = (url, init) => {
+    try {
+      if (!/^\/api\/game\/market/.test(new URL(url, location.href).pathname) || typeof init?.body !== 'string') return undefined;
+      return JSON.parse(init.body);
+    } catch { return undefined; }
+  };
+  const store = (url, data, req, suffix = '') => {
     try {
       if (!watched(url)) return;
-      const p = keyOf(new URL(url, location.href));
-      cache[p] = { data, at: Date.now() };
+      const p = keyOf(new URL(url, location.href)) + suffix;
+      cache[p] = req === undefined ? { data, at: Date.now() } : { data, req, at: Date.now() };
       window.dispatchEvent(new CustomEvent('pb:data', { detail: { path: p } }));
     } catch {}
   };
@@ -33,7 +42,9 @@
       const url = res.url || (args[0] && args[0].url) || String(args[0]);
       // Só JSON: clonar um stream (SSE etc.) guardaria tudo em memória para sempre.
       const isJson = /json/i.test(res.headers.get('content-type') || '');
-      if (res.ok && isJson && watched(url)) res.clone().json().then(d => store(url, d)).catch(() => {});
+      const req = reqOf(url, args[1]);
+      if (res.ok && isJson && watched(url)) res.clone().json().then(d => store(url, d, req)).catch(() => {});
+      else if (!res.ok && isJson && req !== undefined) res.clone().json().then(d => store(url, { status: res.status, ...d }, req, '#erro')).catch(() => {});
     } catch {}
     return res;
   };
