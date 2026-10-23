@@ -444,7 +444,18 @@ ipcMain.on('pb:account-menu', (e, slot) => {
 const LOGIN_PATH = i => path.join(app.getPath('userData'), `sessao-conta${i + 1}.bin`);
 const viewIndex = e => views.findIndex(v => v.webContents.id === e.sender.id);
 const viewSlot = e => slotAt(viewIndex(e));
-const loginLog = (i, msg) => process.env.PB_DEBUG && console.log(`[conta${i + 1}] login: ${msg}`);
+// Registro do login (restaurar sessão, sessão vencida, login salvo) em debug/login.log, sempre ligado: só eventos e nomes
+// de chaves, nunca valores (tokens, usuário, senha). Com PB_DEBUG=1 também sai no terminal. Fica no máximo ~512 KB.
+function loginLog(i, msg) {
+  const line = `${new Date().toISOString()} [conta${i + 1}] ${msg}`;
+  if (process.env.PB_DEBUG) console.log(`[conta${i + 1}] login: ${msg}`);
+  try {
+    const dir = path.join(app.getPath('userData'), 'debug'), file = path.join(dir, 'login.log');
+    fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(file) && fs.statSync(file).size > 524288) fs.writeFileSync(file, fs.readFileSync(file, 'utf8').slice(-262144));
+    fs.appendFileSync(file, line + '\n');
+  } catch {}
+}
 const loginRestored = new Set();  // restaura uma vez por execução: se o jogo recusar a sessão, não insiste
 // Sessão vencida: o servidor responde "Sessão inválida ou expirada" e o jogo para nessa tela, sem o login. O
 // preload avisa; aqui apagamos a cópia salva desta conta e autorizamos limpar a sessão da aba e recarregar, o que
@@ -473,16 +484,20 @@ async function forgetLogin(slot) {
 const CRED_PATH = slot => path.join(app.getPath('userData'), `credenciais-conta${slot + 1}.bin`);
 const CRED_OFFER_MS = 2 * 60e3;  // o login precisa dar certo neste tempo para a pergunta aparecer
 const credOffers = new Map();    // slot -> { user, pass, at }: digitado, esperando o login dar certo
-function readCred(slot) {
+function readCred(slot, why = '') {
   try {
-    if (!safeStorage.isEncryptionAvailable() || !fs.existsSync(CRED_PATH(slot))) return null;
+    if (!safeStorage.isEncryptionAvailable()) { if (why) loginLog(slot, `login salvo: criptografia indisponível (${why})`); return null; }
+    if (!fs.existsSync(CRED_PATH(slot))) { if (why) loginLog(slot, `login salvo: nenhum (${why})`); return null; }
     const c = JSON.parse(safeStorage.decryptString(fs.readFileSync(CRED_PATH(slot))));
-    return typeof c?.user === 'string' && typeof c?.pass === 'string' ? c : null;
-  } catch { return null; }
+    const ok = typeof c?.user === 'string' && typeof c?.pass === 'string';
+    if (why) loginLog(slot, `login salvo: ${ok ? 'lido' : 'formato inválido'} (${why})`);
+    return ok ? c : null;
+  } catch (err) { if (why) loginLog(slot, `login salvo: falha ao ler (${err.message}) (${why})`); return null; }
 }
 ipcMain.on('pb:cred-get', e => {
   const slot = viewSlot(e);
-  e.returnValue = Number.isInteger(slot) && slot >= 0 ? readCred(slot) : null;
+  if (!Number.isInteger(slot) || slot < 0) { e.returnValue = null; return; }
+  e.returnValue = readCred(slot, 'tela de login');
 });
 ipcMain.on('pb:cred-offer', (e, c) => {
   const slot = viewSlot(e);

@@ -83,6 +83,7 @@ if (location.origin === GAME_ORIGIN) {
     if (credTried || user.value || pass.value) return;
     credTried = true;
     const cred = ipcRenderer.sendSync('pb:cred-get');
+    trace(cred ? 'tela de login: preenchida com o login salvo' : 'tela de login: sem login salvo para preencher');
     if (!cred) return;
     setNative(user, cred.user);
     setNative(pass, cred.pass);
