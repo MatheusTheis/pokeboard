@@ -184,6 +184,9 @@ window.addEventListener('pb:dock-order-save', () => {
   try { ipcRenderer.send('pb:set-dock-order', JSON.parse(document.documentElement.dataset.pbDockOrder || '[]')); } catch {}
 });
 
+// Diagnóstico dos extras (mundo da página): uma linha em debug/diag.log, para conferir no jogo de verdade.
+window.addEventListener('pb:diag', () => ipcRenderer.send('pb:diag', String(document.documentElement.dataset.pbDiag || '').slice(0, 500)));
+
 // Bolsa cheia (bag-alert.js): o cartão no meio da tela é da página; daqui vai para o main piscar a barra de tarefas
 // e mostrar a notificação do Windows.
 window.addEventListener('pb:bag', () => {

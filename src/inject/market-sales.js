@@ -32,6 +32,8 @@
   const KEEP_SALES_MS = 120 * DAY, KEEP_GONE_MS = 60 * DAY;
   const CHECK_MS = 1000;
 
+  // Diagnóstico em debug/diag.log (pelo preload): o que a busca de preços fez, para conferir no jogo de verdade.
+  const diag = msg => { document.documentElement.dataset.pbDiag = `mercado: ${msg}`; window.dispatchEvent(new Event('pb:diag')); };
   const fmt = n => Math.round(n).toLocaleString('pt-BR');
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const span = ms => {
@@ -62,6 +64,7 @@
         if (db.sales[k]) continue;
         db.sales[k] = { n: h.name, a: +h.amount || 0, p: +h.price || 0, cur: h.currency, at: Date.parse(h.at) || now, offer: !!h.offer };
         changed = true;
+        dirtyMine();
       }
     }
     if (Array.isArray(data.mine)) {
@@ -74,7 +77,8 @@
         Object.assign(r, { q: m.quantity || 0, last: now, gone: 0 });
       }
       for (const [id, r] of Object.entries(db.own)) if (!ids.has(id) && !r.gone) r.gone = now;
-      mineIds = ids;
+      if (ids.size !== mineIds.size || [...ids].some(id => !mineIds.has(id))) { mineIds = ids; dirtyMarket(); }
+      dirtyMine();
       changed = true;
     }
     if (!changed) return;
@@ -87,12 +91,49 @@
   window.addEventListener('pb:data', e => {
     const k = e.detail?.path;
     if (!isMarketKey(k)) return;
+    dirtyMarket();
     learn(window.__pbCache?.[k]?.data);
     schedule();
   });
 
+  // ---------- índices ----------
+  // Montados uma vez por resposta do Mercado (ou do seu histórico) e consultados por card: antes cada card varria todos
+  // os anúncios carregados (milhares) a cada mudança na tela, e a tela do Mercado travava.
+  let idx = null, salesIdx = null, ownIdx = null, memoAt = 0;
+  const memo = new Map();                        // sugestões por "nome|quantidade" até os dados mudarem
+  function dirtyMarket() { idx = null; memo.clear(); }
+  function dirtyMine() { salesIdx = null; ownIdx = null; memo.clear(); }
+  const group = x => (x.kind === 'pokemon' ? 'pokemon' : 'item');
+  const keysOf = x => (x.refId && group(x) === 'item' ? [`item|r:${x.refId}`, `item|n:${x.name}`] : [`${group(x)}|n:${x.name}`]);
+  function marketIndex() {
+    if (idx) return idx;
+    const offers = new Map(), reqs = new Map(), seen = new Set();
+    let at = 0;
+    for (const [key, hit] of Object.entries(window.__pbCache || {})) {
+      if (!isMarketKey(key)) continue;
+      at = Math.max(at, hit?.at || 0);
+      for (const x of hit?.data?.listings || []) {
+        if (!x?.name || x.currency !== 'GOLD' || x.offerOnly) continue;
+        // O mesmo anúncio vem na lista geral e na da categoria: tira o repetido pelo id dele (preço e hora podem repetir).
+        const uid = x.id != null ? `id:${x.id}` : idOf(x);
+        if (seen.has(uid) || mineIds.has(idOf(x))) continue;
+        seen.add(uid);
+        for (const k of keysOf(x)) { let a = offers.get(k); if (!a) offers.set(k, a = []); a.push(x); }
+      }
+      for (const r of hit?.data?.requests || []) {
+        if (!r?.name) continue;
+        for (const k of keysOf(r)) { const b = reqs.get(k); if (!b || r.price > b.price) reqs.set(k, r); }
+      }
+    }
+    for (const a of offers.values()) a.sort((p, q) => p.price - q.price);
+    return (idx = { offers, reqs, at });
+  }
+  const byName = (map, list) => { const m = new Map(); for (const x of list) { let a = m.get(x.n); if (!a) m.set(x.n, a = []); a.push(x); } return m; };
+  const salesBy = () => salesIdx || (salesIdx = byName(null, Object.values(db.sales)));
+  const ownBy = () => ownIdx || (ownIdx = byName(null, Object.values(db.own)));
+
   // ---------- contas ----------
-  const salesOf = (name, price, cur, from) => Object.values(db.sales).filter(s => s.n === name && (price == null || s.p === price) && (!cur || s.cur === cur) && s.at >= from);
+  const salesOf = (name, price, cur, from) => (salesBy().get(name) || []).filter(s => (price == null || s.p === price) && (!cur || s.cur === cur) && s.at >= from);
   // Um anúncio seu: idade, unidades vendidas desde que foi criado, 1ª e última venda.
   function statusOf(l, now = Date.now()) {
     const created = Date.parse(l.at) || now, age = now - created, rec = db.own[idOf(l)];
@@ -112,59 +153,45 @@
     const recent = salesOf(name, null, 'GOLD', now - 30 * DAY);
     const units = recent.reduce((t, s) => t + s.a, 0);
     const delays = [];
-    for (const r of Object.values(db.own)) {
-      if (r.n !== name) continue;
+    for (const r of ownBy().get(name) || []) {
       const after = salesOf(name, r.p, r.cur, r.at).filter(s => !r.gone || s.at <= r.gone + 60e3);
       if (after.length) delays.push(Math.min(...after.map(s => s.at)) - r.at);
     }
     const lastSale = recent.reduce((m, s) => (s.at > (m?.at || 0) ? s : m), null);
     return { units, count: recent.length, median: median(recent.map(s => s.p)), last: lastSale, tts: median(delays), ttsN: delays.length };
   }
-  // O Mercado para um item: anúncios dos outros (todas as categorias carregadas) e pedidos de compra.
+  // O Mercado para um item: anúncios dos outros em dollars (todas as listas carregadas, já em ordem de preço) e o maior
+  // pedido de compra; pelo refId e, sem ele, pelo nome.
+  const NO_MARKET = { cheapest: null, cheapestQty: 0, ahead: 0, sellersAhead: 0, bestReq: null, reqUnits: 0, offers: 0, top: [], at: 0 };
   function marketFor(l) {
-    const seen = new Set(), k = itemKey(l);
-    const same = x => itemKey(x) === k || (x.kind === l.kind && x.name === l.name);  // sem o refId, pelo nome
-    let cheapest = null, ahead = 0, sellersAhead = 0, bestReq = null, reqUnits = 0, at = 0;
-    const offers = [];
-    for (const [key, hit] of Object.entries(window.__pbCache || {})) {
-      if (!isMarketKey(key)) continue;
-      at = Math.max(at, hit?.at || 0);
-      for (const x of hit?.data?.listings || []) {
-        if (!x || x.currency !== (l.currency || 'GOLD') || x.offerOnly || !same(x) || mineIds.has(idOf(x))) continue;
-        const id = idOf(x);
-        if (seen.has(id)) continue;
-        seen.add(id);
-        offers.push(x);
-        if (!cheapest || x.price < cheapest.price) cheapest = x;
-        if (l.price != null && x.price < l.price) { ahead += x.quantity || 1; sellersAhead += x.sellers || 1; }
-      }
-      for (const r of hit?.data?.requests || []) {
-        if (!r || !same(r)) continue;
-        if (bestReq == null || r.price > bestReq) { bestReq = r.price; reqUnits = r.amount || 0; }
-      }
-    }
-    offers.sort((a, b) => a.price - b.price);
-    return { cheapest: cheapest?.price ?? null, cheapestQty: cheapest?.quantity || 0, ahead, sellersAhead, bestReq, reqUnits, offers: seen.size,
-      top: offers.slice(0, 4).map(x => ({ p: x.price, q: x.quantity || 1, s: x.sellers || 1 })), at };
+    if ((l.currency || 'GOLD') !== 'GOLD') return NO_MARKET;
+    const I = marketIndex(), ks = keysOf(l);
+    let list = null, req = null;
+    for (const k of ks) if (!list) list = I.offers.get(k);
+    for (const k of ks) if (!req) req = I.reqs.get(k);
+    list ||= [];
+    let ahead = 0, sellersAhead = 0;
+    if (l.price != null) for (const x of list) { if (x.price >= l.price) break; ahead += x.quantity || 1; sellersAhead += x.sellers || 1; }
+    return { cheapest: list[0]?.price ?? null, cheapestQty: list[0]?.quantity || 0, ahead, sellersAhead, bestReq: req?.price ?? null,
+      reqUnits: req?.amount || 0, offers: list.length, top: list.slice(0, 4).map(x => ({ p: x.price, q: x.quantity || 1, s: x.sellers || 1 })), at: I.at };
   }
   // Seus anúncios deste item que ficaram parados (4 dias ou mais, ou retirados, sem nenhuma venda).
   function staleOf(name, now = Date.now()) {
     let n = 0;
-    for (const r of Object.values(db.own)) {
-      if (r.n !== name) continue;
+    for (const r of ownBy().get(name) || []) {
       const end = r.gone || now, sold = salesOf(name, r.p, r.cur, r.at).some(x => x.at <= end + 60e3);
       if (!sold && end - r.at >= STALE_MS) n++;
     }
     return n;
   }
-  // O Mercado de um item pelo nome (grade do Anunciar): anúncios dos outros em dollars e pedidos de compra.
-  function marketByName(name) {
-    const any = Object.values(window.__pbCache || {}).flatMap(h => h?.data?.listings || []).find(x => x?.kind !== 'pokemon' && x?.name === name);
-    return marketFor(any ? { ...any, price: null, currency: 'GOLD' } : { kind: 'item', name, refId: 0, price: null, currency: 'GOLD' });
-  }
+  // O Mercado de um item pelo nome (grade do Anunciar).
+  const marketByName = name => marketFor({ kind: 'item', name, refId: 0, price: null, currency: 'GOLD' });
   // Para vender `qty` de um item: o que rende mais por unidade (já sem a taxa) entre o Mark, anunciar 1 abaixo do mais
   // barato dos outros (nunca abaixo do Mark, que o jogo não aceita) e o maior pedido de compra; e se o item vende.
   function suggest(name, qty = 1, now = Date.now()) {
+    if (now - memoAt > 60e3) { memo.clear(); memoAt = now; }  // idade e "parado" andam com o relógio
+    const mkey = `${name}|${qty}`;
+    if (memo.has(mkey)) return memo.get(mkey);
     const P = window.__pbPrices, mark = P?.npc(name);
     const feeOf = total => (P ? P.fee(total) : Math.min(1e6, Math.floor(total * 0.03)));
     const netUnit = (p, q) => (p * q - feeOf(p * q)) / q;
@@ -178,7 +205,9 @@
     const sells = st.count > 0 ? 'vende' : stale ? 'parado' : 'novo';
     const rank = o => o.unit * (o.action === 'list' && sells === 'parado' && mark > 0 ? 0 : 1);
     const best = opts.reduce((m, o) => (!m || rank(o) > rank(m) || (rank(o) === rank(m) && o.action === 'request') ? o : m), null);
-    return { name, qty, mark, mk, st, stale, sells, opts, best };
+    const out = { name, qty, mark, mk, st, stale, sells, opts, best };
+    memo.set(mkey, out);
+    return out;
   }
   window.__pbSales = { statusOf, itemStats, marketFor, suggest, isMine: l => mineIds.has(idOf(l)), STALE_MS };
 
@@ -342,34 +371,65 @@
   status.id = 'pb-price-status';
   const say = t => { if (status.textContent !== t) status.textContent = t; };
   let lastScan = 0, scanning = false, openedAt = 0;
+  // A busca por categoria da própria tela (o useCallback do jogo que chama /api/game/market?category=…) e a categoria
+  // que a tela usa agora (o useEffect que chama essa busca quando a categoria muda guarda as duas nas deps).
+  function categoryFetcher() {
+    const el = win?.querySelector(TABS) || win;
+    for (let f = el && fiberOf(el), d = 0; f && d < 60; f = f.return, d++) {
+      if (typeof f.type !== 'function') continue;
+      let fn = null, cat;
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const m = h.memoizedState;
+        if (!fn && Array.isArray(m) && typeof m[0] === 'function' && /market\?category=/.test(String(m[0]))) fn = m[0];
+      }
+      if (!fn) continue;
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const e = h.memoizedState;
+        if (e && typeof e === 'object' && Array.isArray(e.deps) && e.deps.length === 2 && e.deps[0] === fn) { cat = e.deps[1]; break; }
+      }
+      return { fn, cat };
+    }
+    return null;
+  }
+  let lastWhy = '';
+  const why = m => { if (m !== lastWhy) { lastWhy = m; diag(m); } };
   async function scanCategories(reason) {
     const wait = reason === 'open' ? SCAN_REOPEN_MS : SCAN_EVERY_MS;
     if (scanning || Date.now() - lastScan < wait || !win?.isConnected) return;
-    const q = categoryQueue();
-    if (!q) return;
     const cats = neededCats();
     if (!cats.length) return;
+    const fx = categoryFetcher(), q = fx ? null : categoryQueue();
+    if (!fx && !q) { why('não achei a busca por categoria da tela'); return; }
     scanning = true;
     lastScan = Date.now();
-    const original = q.lastRenderedState;
-    let mine = original, aborted = false;
+    const original = fx ? fx.cat : q.lastRenderedState;
+    const t0 = Date.now(), done = [];
+    let aborted = false, mine = original;
+    diag(`buscando ${cats.join(', ')} (${fx ? 'função da tela' : 'estado da categoria'}, categoria atual: ${original ?? 'All'})`);
     try {
       for (const [n, c] of cats.entries()) {
         if (!win?.isConnected) break;
-        if (q.lastRenderedState !== mine) { aborted = true; break; }  // você trocou de categoria: fica a sua escolha
+        const now = fx ? categoryFetcher()?.cat : q.lastRenderedState;
+        if (now !== (fx ? original : mine)) { aborted = true; break; }  // você trocou de categoria: fica a sua escolha
         say(`Preços: buscando ${c} (${n + 1}/${cats.length})…`);
         const key = `${API}?category=${c}`, since = Date.now();
-        q.dispatch(c);
-        mine = c;
+        if (fx) await Promise.race([Promise.resolve(fx.fn(c)).catch(() => {}), sleep(SCAN_WAIT_MS)]);
+        else { q.dispatch(c); mine = c; }
         for (const end = Date.now() + SCAN_WAIT_MS; Date.now() < end && !((window.__pbCache?.[key]?.at || 0) >= since);) await sleep(150);
+        done.push(`${c} ${(window.__pbCache?.[key]?.at || 0) >= since ? `ok (${window.__pbCache[key].data?.listings?.length ?? '?'} anúncios)` : 'sem resposta'}`);
         await sleep(SCAN_GAP_MS);
       }
     } finally {
-      if (!aborted && win?.isConnected && q.lastRenderedState === mine && mine !== original) q.dispatch(original);
+      if (!aborted && win?.isConnected) {
+        if (fx) { try { fx.fn(original); } catch {} }                         // a tela volta à lista da categoria dela
+        else if (q.lastRenderedState === mine && mine !== original) q.dispatch(original);
+      }
       scanning = false;
       lastScan = Date.now();
       say('');
+      dirtyMarket();
       schedule();
+      diag(`${aborted ? 'parado (você trocou de categoria)' : 'pronto'} em ${((Date.now() - t0) / 1000).toFixed(1)} s: ${done.join(' · ') || 'nada'}`);
     }
   }
   // Status no Anunciar, ao lado dos filtros: buscando, ou de quando são os preços.

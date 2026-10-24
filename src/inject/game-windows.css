@@ -2174,3 +2174,7 @@
 @media (prefers-reduced-motion: reduce) {
   .game-root .game-dock .dock-btn[data-pb-pulse] { animation: none !important; box-shadow: 0 0 0 3px var(--pb-pika-yellow) !important; }
 }
+
+/* Anunciar: uma etiqueta por card. Com o precificador, o ganho do Vale vender (canto esquerdo) sai do card; as contas
+   ficam no cartão ao passar o mouse. */
+.game-root .mkt2-window .mkt-tile[data-pb-sug][data-pb-gain]::after { display: none !important; }

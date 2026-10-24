@@ -647,6 +647,19 @@ ipcMain.on('pb:market-obs', (e, rows) => {
 });
 ipcMain.on('pb:market-history-want', e => { if (Number.isInteger(viewSlot(e))) sendMarketHistory(e.sender); });
 
+// ---------- diagnóstico dos extras (debug/diag.log) ----------
+// Uma linha por evento que os scripts da página mandam (pb:diag), com a conta; até ~512 KB (fica o fim).
+ipcMain.on('pb:diag', (e, msg) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0 || typeof msg !== 'string' || !msg) return;
+  try {
+    const dir = path.join(app.getPath('userData'), 'debug'), file = path.join(dir, 'diag.log');
+    fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(file) && fs.statSync(file).size > 524288) fs.writeFileSync(file, fs.readFileSync(file, 'utf8').slice(-262144));
+    fs.appendFileSync(file, `${new Date().toISOString()} [conta${slot + 1}] ${msg.slice(0, 500)}\n`);
+  } catch {}
+});
+
 // ---------- tela "algo travou" do jogo ----------
 // O preload avisa quando o jogo cai na tela de erro dele (e se vai recarregar a conta); guardamos em debug/travou.log
 // os últimos erros do console daquela conta, para achar a causa. O arquivo não passa de ~1 MB (fica o fim).
