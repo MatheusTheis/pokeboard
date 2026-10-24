@@ -4,9 +4,11 @@
 //   vendeu e, com 4 dias ou mais sem nenhuma venda, um aviso para retirar. Passando o mouse: o anúncio, as vendas dele,
 //   como está o Mercado (mais barato dos outros, unidades na sua frente, maior pedido de compra) e o seu histórico do
 //   item (vendas em 30 dias, preço mediano, tempo típico até a 1ª venda).
-// - A lista geral do Mercado não traz todos os anúncios: com o Mercado aberto fora da aba Comprar, carregamos as
-//   categorias Items, Stones, Poke Balls e Diamonds pela própria tela (o estado da categoria, como um clique), no
-//   máximo a cada 10 min, e a categoria volta a ser a que estava.
+// - A lista geral do Mercado não traz todos os anúncios, e o jogo só busca por categoria (o "mais barato" ordena na
+//   tela). Ao abrir o Mercado, em qualquer aba, lemos os itens que você pode anunciar (a lista da própria tela do
+//   Anunciar) e carregamos só as categorias deles pela própria tela (o estado da categoria, como um clique); de novo
+//   ao reabrir depois de 2 min e a cada 10 min com o Mercado aberto. A categoria volta a ser a que estava; se você
+//   trocar de categoria no meio, paramos e fica a sua escolha.
 // Itens: as vendas do histórico com o mesmo nome e preço depois da criação do anúncio são dele (e vemos a pilha
 // diminuir). Pokémon (1 por anúncio): se o anúncio ainda está lá, não vendeu.
 // Tudo por conta (localStorage do painel). Só lê; não anuncia nem retira nada. window.__pbSales serve o Anunciar.
@@ -19,13 +21,14 @@
   const ITEMS = '.mkt2-grid > .mkt2-card, .mkt2-rows .mkt2-row, .mkt2-rows .mkt2-trow:not(.mkt2-trow--head)';
   const INFO = ':scope :is(.mkt2-card-info, .mkt2-row-info, .mkt2-tc--name)';  // onde entra a etiqueta
   const TABS = '.mkt2-tabs';
-  const BUY_TAB = '.mkt2-tabs .mkt2-tab:first-child';                        // Comprar é a primeira aba
   const CATS = ['Items', 'Stones', 'Poke Balls', 'Diamonds'];
   const CAT_STATES = new Set(['All', ...CATS, 'Pokemon']);
   const KEY = 'pb:sales:v1';
   const DAY = 864e5;
   const STALE_MS = 4 * DAY;                      // sem nenhuma venda há isso: sugerir retirar
-  const SCAN_EVERY_MS = 10 * 60e3, SCAN_GAP_MS = 1500, SCAN_WAIT_MS = 8000;
+  const SCAN_EVERY_MS = 10 * 60e3, SCAN_REOPEN_MS = 2 * 60e3, SCAN_GAP_MS = 300, SCAN_WAIT_MS = 8000;
+  // Categoria do Mercado de cada tipo de item do jogo (items.json); o resto fica em Items.
+  const MARKET_CAT = { stone: 'Stones', ball: 'Poke Balls', diamonds: 'Diamonds' };
   const KEEP_SALES_MS = 120 * DAY, KEEP_GONE_MS = 60 * DAY;
   const CHECK_MS = 1000;
 
@@ -33,7 +36,7 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const span = ms => {
     const h = ms / 36e5;
-    return h < 1 ? `${Math.max(1, Math.round(ms / 6e4))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
+    return ms < 6e4 ? 'menos de 1 min' : h < 1 ? `${Math.round(ms / 6e4)} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} d`;
   };
   const when = t => new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -121,14 +124,17 @@
   function marketFor(l) {
     const seen = new Set(), k = itemKey(l);
     const same = x => itemKey(x) === k || (x.kind === l.kind && x.name === l.name);  // sem o refId, pelo nome
-    let cheapest = null, ahead = 0, sellersAhead = 0, bestReq = null, reqUnits = 0;
+    let cheapest = null, ahead = 0, sellersAhead = 0, bestReq = null, reqUnits = 0, at = 0;
+    const offers = [];
     for (const [key, hit] of Object.entries(window.__pbCache || {})) {
       if (!isMarketKey(key)) continue;
+      at = Math.max(at, hit?.at || 0);
       for (const x of hit?.data?.listings || []) {
         if (!x || x.currency !== (l.currency || 'GOLD') || x.offerOnly || !same(x) || mineIds.has(idOf(x))) continue;
         const id = idOf(x);
         if (seen.has(id)) continue;
         seen.add(id);
+        offers.push(x);
         if (!cheapest || x.price < cheapest.price) cheapest = x;
         if (l.price != null && x.price < l.price) { ahead += x.quantity || 1; sellersAhead += x.sellers || 1; }
       }
@@ -137,7 +143,9 @@
         if (bestReq == null || r.price > bestReq) { bestReq = r.price; reqUnits = r.amount || 0; }
       }
     }
-    return { cheapest: cheapest?.price ?? null, cheapestQty: cheapest?.quantity || 0, ahead, sellersAhead, bestReq, reqUnits, offers: seen.size };
+    offers.sort((a, b) => a.price - b.price);
+    return { cheapest: cheapest?.price ?? null, cheapestQty: cheapest?.quantity || 0, ahead, sellersAhead, bestReq, reqUnits, offers: seen.size,
+      top: offers.slice(0, 4).map(x => ({ p: x.price, q: x.quantity || 1, s: x.sellers || 1 })), at };
   }
   // Seus anúncios deste item que ficaram parados (4 dias ou mais, ou retirados, sem nenhuma venda).
   function staleOf(name, now = Date.now()) {
@@ -191,6 +199,7 @@
     pending = 0;
     if (!win?.isConnected) return;
     applyTiles();
+    mountStatus();
     const now = Date.now();
     for (const el of win.querySelectorAll(ITEMS)) {
       const l = listingOf(el), mine = !!l && mineIds.has(idOf(l));
@@ -238,7 +247,10 @@
     let body = row('Você tem', `${fmt(qty)} un`);
     if (s.mark > 0) body += row('Mark (NPC)', `${fmt(s.mark)}/un <small>· ${fmt(s.mark * qty)}</small>`);
     const list = s.opts.find(o => o.action === 'list');
-    if (s.mk.cheapest != null) body += row('Mais barato dos outros', `${fmt(s.mk.cheapest)} <small>· ${fmt(s.mk.offers)} anúncio${s.mk.offers > 1 ? 's' : ''}</small>`);
+    if (s.mk.cheapest != null) {
+      body += row('Mais baratos dos outros', s.mk.top.map(o => `${fmt(o.p)} <small>× ${fmt(o.q)}</small>`).join('<br>'));
+      if (s.mk.offers > s.mk.top.length) body += row('', `<small>${fmt(s.mk.offers)} anúncios ao todo</small>`);
+    } else body += row('Outros vendendo', 'ninguém');
     if (list) body += row(`Anunciar a ${fmt(list.price)}`, `${fmt(Math.floor(list.unit))}/un líquido <small>· ${total(list)}</small>`);
     const req = s.opts.find(o => o.action === 'request');
     if (req) body += row('Maior pedido de compra', `${fmt(req.price)} <small>× ${fmt(s.mk.reqUnits)} · ${fmt(Math.floor(req.unit))}/un líquido</small>`);
@@ -247,7 +259,8 @@
     if (s.stale) body += row('Anúncios parados', `${s.stale} <small>(4 dias ou mais sem venda)</small>`);
     const note = s.sells === 'parado' ? '<p class="pbsc-note">Seus anúncios deste item não venderam: o Mark ganha a preferência.</p>'
       : s.sells === 'novo' ? '<p class="pbsc-note">Ainda sem venda sua deste item: o tempo para vender é estimativa.</p>' : '';
-    card.innerHTML = `<div class="pbsc-head"><b>${esc(name)}</b><span>para vender</span></div>${verdict}<dl>${body}</dl>${note}`;
+    const age = s.mk.at ? `<p class="pbsc-note">Preços do Mercado de há ${span(Date.now() - s.mk.at)}.</p>` : '';
+    card.innerHTML = `<div class="pbsc-head"><b>${esc(name)}</b><span>para vender</span></div>${verdict}<dl>${body}</dl>${note}${age}`;
   }
 
   // ---------- cartão ao passar o mouse ----------
@@ -305,27 +318,70 @@
     }
     return null;
   }
-  const onBuyTab = () => !!win?.querySelector(BUY_TAB)?.classList.contains('on');
-  let lastScan = 0, scanning = false;
-  async function scanCategories() {
-    if (scanning || Date.now() - lastScan < SCAN_EVERY_MS || !win?.isConnected || onBuyTab()) return;
+  // Itens que você pode anunciar: a lista que a tela do Mercado monta para o Anunciar (useMemo, existe em qualquer
+  // aba): { key: "item:12" | "ball:3" | "diamonds:0", label, max (quantidade), cat (tipo do items.json), npc }.
+  function sellables() {
+    const el = win?.querySelector(TABS) || win;
+    let best = null;
+    for (let f = el && fiberOf(el), d = 0; f && d < 60; f = f.return, d++) {
+      if (typeof f.type !== 'function') continue;
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const v = Array.isArray(h.memoizedState) && h.memoizedState.length === 2 ? h.memoizedState[0] : null;
+        if (Array.isArray(v) && v.length && /^(item|ball|diamonds):/.test(v[0]?.key || '') && 'max' in v[0] && (!best || v.length > best.length)) best = v;
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+  const neededCats = () => {
+    const list = sellables();
+    if (!list) return [...CATS];
+    return CATS.filter(c => list.some(x => (MARKET_CAT[x.key.split(':')[0]] || MARKET_CAT[x.cat] || 'Items') === c));
+  };
+  const status = document.createElement('span');
+  status.id = 'pb-price-status';
+  const say = t => { if (status.textContent !== t) status.textContent = t; };
+  let lastScan = 0, scanning = false, openedAt = 0;
+  async function scanCategories(reason) {
+    const wait = reason === 'open' ? SCAN_REOPEN_MS : SCAN_EVERY_MS;
+    if (scanning || Date.now() - lastScan < wait || !win?.isConnected) return;
     const q = categoryQueue();
     if (!q) return;
+    const cats = neededCats();
+    if (!cats.length) return;
     scanning = true;
     lastScan = Date.now();
     const original = q.lastRenderedState;
+    let mine = original, aborted = false;
     try {
-      for (const c of CATS) {
-        if (!win?.isConnected || onBuyTab()) break;
+      for (const [n, c] of cats.entries()) {
+        if (!win?.isConnected) break;
+        if (q.lastRenderedState !== mine) { aborted = true; break; }  // você trocou de categoria: fica a sua escolha
+        say(`Preços: buscando ${c} (${n + 1}/${cats.length})…`);
         const key = `${API}?category=${c}`, since = Date.now();
         q.dispatch(c);
-        for (const end = Date.now() + SCAN_WAIT_MS; Date.now() < end && !((window.__pbCache?.[key]?.at || 0) >= since);) await sleep(200);
+        mine = c;
+        for (const end = Date.now() + SCAN_WAIT_MS; Date.now() < end && !((window.__pbCache?.[key]?.at || 0) >= since);) await sleep(150);
         await sleep(SCAN_GAP_MS);
       }
     } finally {
-      if (q.lastRenderedState !== original) q.dispatch(original);
+      if (!aborted && win?.isConnected && q.lastRenderedState === mine && mine !== original) q.dispatch(original);
       scanning = false;
+      lastScan = Date.now();
+      say('');
+      schedule();
     }
+  }
+  // Status no Anunciar, ao lado dos filtros: buscando, ou de quando são os preços.
+  function mountStatus() {
+    const fbar = win.querySelector('.mkt-sellform .mk-fbar');
+    if (!fbar) { if (status.isConnected) status.remove(); return; }
+    if (status.parentElement !== fbar) fbar.append(status);
+    if (scanning) return;
+    const ats = neededCats().map(c => window.__pbCache?.[`${API}?category=${c}`]?.at || 0);
+    const oldest = ats.length && ats.every(Boolean) ? Math.min(...ats) : 0;
+    const t = oldest ? `Preços de há ${span(Date.now() - oldest)}` : 'Preços: aguardando o Mercado';
+    if (status.textContent !== t) status.textContent = t;
   }
 
   // ---------- acompanhar a janela do Mercado ----------
@@ -347,8 +403,10 @@
         win.addEventListener('pointerleave', hide);
         win.addEventListener('scroll', hide, true);
         schedule();
+        openedAt = Date.now();
       }
     }
-    if (win) scanCategories();
+    // Ao abrir: assim que a tela tiver a lista dos seus itens (até ~5 s); depois, a cada 10 min.
+    if (win) scanCategories(Date.now() - openedAt < 5000 ? 'open' : 'tick');
   }, CHECK_MS);
 })();
