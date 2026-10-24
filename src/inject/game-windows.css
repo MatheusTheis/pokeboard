@@ -2140,3 +2140,23 @@
 .game-root .team-window .pb-evo-chip.lock { background: var(--pb-dex-red-deep); color: var(--pb-on-red); }
 .game-root .team-window .pb-evo-bar { flex-basis: 100%; height: 6px; background: var(--pb-bar-track); box-shadow: 0 0 0 2px var(--pb-border); }
 .game-root .team-window .pb-evo-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px); }
+
+/* Anunciar › itens (market-sales.js): o melhor destino no canto do card — preço para anunciar, ⇢ pedido de compra
+   ou NPC (Mark); ⚠ quando seus anúncios do item ficaram parados. O cartão ao passar o mouse traz as contas. */
+.game-root .mkt2-window .mkt-tile[data-pb-sug]::before {
+  content: attr(data-pb-sug);
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  z-index: 1;
+  padding: 0 3px;
+  background: var(--pb-poke-blue);
+  color: var(--pb-on-yellow);
+  box-shadow: 0 0 0 1px var(--pb-shadow-ink);
+  font: 700 9px/12px var(--pb-font-body);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.game-root .mkt2-window .mkt-tile[data-pb-sug-kind="request"]::before { background: var(--pb-pika-yellow); }
+.game-root .mkt2-window .mkt-tile[data-pb-sug-kind="mark"]::before { background: var(--pb-surface-raised); color: var(--pb-ink); }
+#pb-sale-card .pbsc-note { margin: 8px 10px 0; color: var(--pb-ink-muted); font-size: 12px; }

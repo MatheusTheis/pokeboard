@@ -120,11 +120,12 @@
   // O Mercado para um item: anúncios dos outros (todas as categorias carregadas) e pedidos de compra.
   function marketFor(l) {
     const seen = new Set(), k = itemKey(l);
+    const same = x => itemKey(x) === k || (x.kind === l.kind && x.name === l.name);  // sem o refId, pelo nome
     let cheapest = null, ahead = 0, sellersAhead = 0, bestReq = null, reqUnits = 0;
     for (const [key, hit] of Object.entries(window.__pbCache || {})) {
       if (!isMarketKey(key)) continue;
       for (const x of hit?.data?.listings || []) {
-        if (!x || x.currency !== (l.currency || 'GOLD') || x.offerOnly || itemKey(x) !== k || mineIds.has(idOf(x))) continue;
+        if (!x || x.currency !== (l.currency || 'GOLD') || x.offerOnly || !same(x) || mineIds.has(idOf(x))) continue;
         const id = idOf(x);
         if (seen.has(id)) continue;
         seen.add(id);
@@ -132,13 +133,46 @@
         if (l.price != null && x.price < l.price) { ahead += x.quantity || 1; sellersAhead += x.sellers || 1; }
       }
       for (const r of hit?.data?.requests || []) {
-        if (!r || itemKey(r) !== k) continue;
+        if (!r || !same(r)) continue;
         if (bestReq == null || r.price > bestReq) { bestReq = r.price; reqUnits = r.amount || 0; }
       }
     }
     return { cheapest: cheapest?.price ?? null, cheapestQty: cheapest?.quantity || 0, ahead, sellersAhead, bestReq, reqUnits, offers: seen.size };
   }
-  window.__pbSales = { statusOf, itemStats, marketFor, isMine: l => mineIds.has(idOf(l)), STALE_MS };
+  // Seus anúncios deste item que ficaram parados (4 dias ou mais, ou retirados, sem nenhuma venda).
+  function staleOf(name, now = Date.now()) {
+    let n = 0;
+    for (const r of Object.values(db.own)) {
+      if (r.n !== name) continue;
+      const end = r.gone || now, sold = salesOf(name, r.p, r.cur, r.at).some(x => x.at <= end + 60e3);
+      if (!sold && end - r.at >= STALE_MS) n++;
+    }
+    return n;
+  }
+  // O Mercado de um item pelo nome (grade do Anunciar): anúncios dos outros em dollars e pedidos de compra.
+  function marketByName(name) {
+    const any = Object.values(window.__pbCache || {}).flatMap(h => h?.data?.listings || []).find(x => x?.kind !== 'pokemon' && x?.name === name);
+    return marketFor(any ? { ...any, price: null, currency: 'GOLD' } : { kind: 'item', name, refId: 0, price: null, currency: 'GOLD' });
+  }
+  // Para vender `qty` de um item: o que rende mais por unidade (já sem a taxa) entre o Mark, anunciar 1 abaixo do mais
+  // barato dos outros (nunca abaixo do Mark, que o jogo não aceita) e o maior pedido de compra; e se o item vende.
+  function suggest(name, qty = 1, now = Date.now()) {
+    const P = window.__pbPrices, mark = P?.npc(name);
+    const feeOf = total => (P ? P.fee(total) : Math.min(1e6, Math.floor(total * 0.03)));
+    const netUnit = (p, q) => (p * q - feeOf(p * q)) / q;
+    const mk = marketByName(name), st = itemStats(name, now), stale = staleOf(name, now);
+    const opts = [];
+    if (mark > 0) opts.push({ action: 'mark', price: mark, unit: mark, units: qty });
+    let list = mk.cheapest != null ? mk.cheapest - 1 : st.median != null ? Math.round(st.median) : null;
+    if (list != null) { list = Math.max(list, mark || 0, 1); opts.push({ action: 'list', price: list, unit: netUnit(list, qty), units: qty }); }
+    if (mk.bestReq != null) { const u = Math.max(1, Math.min(qty, mk.reqUnits || qty)); opts.push({ action: 'request', price: mk.bestReq, unit: netUnit(mk.bestReq, u), units: u }); }
+    // Item que não vende (seus anúncios ficaram parados e nada vendeu em 30 dias): anunciar perde a vez para o Mark.
+    const sells = st.count > 0 ? 'vende' : stale ? 'parado' : 'novo';
+    const rank = o => o.unit * (o.action === 'list' && sells === 'parado' && mark > 0 ? 0 : 1);
+    const best = opts.reduce((m, o) => (!m || rank(o) > rank(m) || (rank(o) === rank(m) && o.action === 'request') ? o : m), null);
+    return { name, qty, mark, mk, st, stale, sells, opts, best };
+  }
+  window.__pbSales = { statusOf, itemStats, marketFor, suggest, isMine: l => mineIds.has(idOf(l)), STALE_MS };
 
   // ---------- etiquetas nos seus anúncios ----------
   const fiberOf = el => { const k = Object.keys(el).find(x => x.startsWith('__reactFiber$')); return k ? el[k] : null; };
@@ -156,6 +190,7 @@
   function apply() {
     pending = 0;
     if (!win?.isConnected) return;
+    applyTiles();
     const now = Date.now();
     for (const el of win.querySelectorAll(ITEMS)) {
       const l = listingOf(el), mine = !!l && mineIds.has(idOf(l));
@@ -177,6 +212,43 @@
     }
   }
   const schedule = () => { if (!pending) pending = setTimeout(apply, 200); };
+
+  // ---------- Anunciar › itens: o melhor destino em cada card ----------
+  const SELL_TILES = '.mkt-sellform > .mkt-pick:not(.mkt-pick-pk) .mkt-tile';
+  const compact = n => (n >= 1e9 ? `${+(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(Math.round(n)));
+  const tileInfo = t => ({ name: t.querySelector('img')?.alt || '', qty: Number(String(t.querySelector('.mkt-tile-qty')?.textContent || '').replace(/\D/g, '')) || 1 });
+  function applyTiles() {
+    const now = Date.now();
+    for (const t of win.querySelectorAll(SELL_TILES)) {
+      const { name, qty } = tileInfo(t);
+      const s = name ? suggest(name, qty, now) : null, b = s?.best;
+      if (!b) { ['data-pb-sug', 'data-pb-sug-kind'].forEach(k => t.removeAttribute(k)); continue; }
+      const text = (b.action === 'mark' ? 'NPC' : b.action === 'request' ? `⇢${compact(b.price)}` : compact(b.price)) + (s.sells === 'parado' ? ' ⚠' : '');
+      if (t.getAttribute('data-pb-sug') !== text) t.setAttribute('data-pb-sug', text);
+      if (t.getAttribute('data-pb-sug-kind') !== b.action) t.setAttribute('data-pb-sug-kind', b.action);
+    }
+  }
+  function renderTile(t) {
+    const { name, qty } = tileInfo(t), s = suggest(name, qty), b = s.best;
+    const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+    const total = o => fmt(o.unit * o.units);
+    const label = { mark: 'vender para o Mark', list: `anunciar a ${fmt(b?.price || 0)}`, request: `vender para o pedido de ${fmt(b?.price || 0)}` };
+    const verdict = !b ? '<p class="pbsc-verdict">Sem preço conhecido para este item ainda.</p>'
+      : `<p class="pbsc-verdict ${b.action === 'mark' && s.sells === 'parado' ? 'stale' : 'selling'}">Melhor: ${label[b.action]}${b.action === 'request' && b.units < qty ? ` (${fmt(b.units)} un)` : ''}</p>`;
+    let body = row('Você tem', `${fmt(qty)} un`);
+    if (s.mark > 0) body += row('Mark (NPC)', `${fmt(s.mark)}/un <small>· ${fmt(s.mark * qty)}</small>`);
+    const list = s.opts.find(o => o.action === 'list');
+    if (s.mk.cheapest != null) body += row('Mais barato dos outros', `${fmt(s.mk.cheapest)} <small>· ${fmt(s.mk.offers)} anúncio${s.mk.offers > 1 ? 's' : ''}</small>`);
+    if (list) body += row(`Anunciar a ${fmt(list.price)}`, `${fmt(Math.floor(list.unit))}/un líquido <small>· ${total(list)}</small>`);
+    const req = s.opts.find(o => o.action === 'request');
+    if (req) body += row('Maior pedido de compra', `${fmt(req.price)} <small>× ${fmt(s.mk.reqUnits)} · ${fmt(Math.floor(req.unit))}/un líquido</small>`);
+    body += row('Suas vendas em 30 d', s.st.count ? `${fmt(s.st.units)} un <small>em ${s.st.count} venda${s.st.count > 1 ? 's' : ''} · mediana ${fmt(s.st.median)}</small>` : 'nenhuma');
+    if (s.st.tts != null) body += row('Tempo até vender', `~${span(s.st.tts)} <small>(${s.st.ttsN} anúncio${s.st.ttsN > 1 ? 's' : ''})</small>`);
+    if (s.stale) body += row('Anúncios parados', `${s.stale} <small>(4 dias ou mais sem venda)</small>`);
+    const note = s.sells === 'parado' ? '<p class="pbsc-note">Seus anúncios deste item não venderam: o Mark ganha a preferência.</p>'
+      : s.sells === 'novo' ? '<p class="pbsc-note">Ainda sem venda sua deste item: o tempo para vender é estimativa.</p>' : '';
+    card.innerHTML = `<div class="pbsc-head"><b>${esc(name)}</b><span>para vender</span></div>${verdict}<dl>${body}</dl>${note}`;
+  }
 
   // ---------- cartão ao passar o mouse ----------
   const card = document.createElement('div');
@@ -209,11 +281,11 @@
     card.style.top = `${Math.max(4, Math.min(r.top, innerHeight - ch - 4))}px`;
   }
   function show(el) {
-    const l = listingOf(el);
-    if (!l || !mineIds.has(idOf(l))) return hide();
+    const tile = el.matches(SELL_TILES), l = tile ? null : listingOf(el);
+    if (!tile && (!l || !mineIds.has(idOf(l)))) return hide();
     hoverEl = el;
     if (!card.isConnected) document.body.append(card);
-    render(l);
+    if (tile) renderTile(el); else render(l);
     card.hidden = false;
     place(el);
   }
@@ -267,9 +339,10 @@
         mo = new MutationObserver(schedule);
         mo.observe(win, { childList: true, subtree: true });
         win.addEventListener('pointerover', e => {
-          const el = e.target.closest?.(ITEMS);
-          if (el && el !== hoverEl && win.contains(el) && el.hasAttribute('data-pb-sale')) show(el);
-          else if (!el?.hasAttribute('data-pb-sale') && hoverEl) hide();
+          const el = e.target.closest?.(`${ITEMS}, ${SELL_TILES}`);
+          const ok = el && win.contains(el) && (el.hasAttribute('data-pb-sale') || el.hasAttribute('data-pb-sug'));
+          if (ok && el !== hoverEl) show(el);
+          else if (!ok && hoverEl) hide();
         });
         win.addEventListener('pointerleave', hide);
         win.addEventListener('scroll', hide, true);

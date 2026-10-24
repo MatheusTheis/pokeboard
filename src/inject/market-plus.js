@@ -162,7 +162,11 @@
     const qty = itemField(form, 'input.mkt-qslider-range');  // só existe com mais de 1 unidade
     if (qty && qty.value !== qty.max) setNative(qty, qty.max, 'input');
     const price = itemField(form, 'input.mkt-num');
-    if (price && m) setNative(price, Math.max(m.p, P.npc(name) || 0), 'input');
+    // Com o precificador (market-sales.js): o preço sugerido para anunciar (1 abaixo do mais barato dos outros).
+    const qtyHave = num(tile.querySelector('.mkt-tile-qty')?.textContent) || 1;
+    const sug = window.__pbSales?.suggest(name, qtyHave)?.opts.find(o => o.action === 'list');
+    const target = sug ? sug.price : m ? Math.max(m.p, P.npc(name) || 0) : null;
+    if (price && target) setNative(price, target, 'input');
   }
   document.addEventListener('click', e => {
     if (!worthOn) return;
