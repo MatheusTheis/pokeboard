@@ -2105,3 +2105,38 @@
 #pb-sale-card dt { color: var(--pb-ink-muted); }
 #pb-sale-card dd { margin: 0; font-weight: 700; text-align: right; }
 #pb-sale-card dd small { color: var(--pb-ink-muted); font-weight: 500; }
+
+/* Equipe › botão de evoluir (team-evo.js): o texto do jogo some (font-size 0) e entra o nosso, com o destino, o nível
+   necessário sempre à vista (✓ ou quantos faltam, com barra) e, fora de Cerulean, a etiqueta da cidade. */
+.game-root .team-window .team-evo-btn[data-pb-evo] {
+  display: flex !important;
+  align-items: center;
+  padding: 8px 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--pb-dex-red) !important;
+  color: var(--pb-on-red) !important;
+  box-shadow: var(--pb-frame-ink), 4px 4px 0 0 var(--pb-shadow-ink) !important;
+  text-shadow: none !important;
+  font-size: 0 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+.game-root .team-window .team-evo-btn.locked[data-pb-evo] { background: var(--pb-surface-raised) !important; color: var(--pb-ink) !important; cursor: default; }
+.game-root .team-window .team-evo-btn:not(.locked)[data-pb-evo]:hover { filter: brightness(1.12) !important; }
+.game-root .team-window .pb-evo { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; width: 100%; font: 600 15px/20px var(--pb-font-body); }
+.game-root .team-window .pb-evo-main { flex: 1; min-width: 0; text-align: left; }
+.game-root .team-window .pb-evo-main b { font-weight: 700; }
+.game-root .team-window .pb-evo-chips { display: flex; gap: 6px; }
+.game-root .team-window .pb-evo-chip {
+  padding: 1px 8px;
+  background: var(--pb-screen);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-ink);
+  font: 700 12px/18px var(--pb-font-body);
+  white-space: nowrap;
+}
+.game-root .team-window .pb-evo-chip.ok { background: var(--pb-success); color: var(--pb-on-success); }
+.game-root .team-window .pb-evo-chip.lock { background: var(--pb-dex-red-deep); color: var(--pb-on-red); }
+.game-root .team-window .pb-evo-bar { flex-basis: 100%; height: 6px; background: var(--pb-bar-track); box-shadow: 0 0 0 2px var(--pb-border); }
+.game-root .team-window .pb-evo-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px); }

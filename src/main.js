@@ -40,7 +40,7 @@ const SKIN_OFF_CSS = `/* Design original do jogo (botão "Original" do PokeBoard
 #pb-dock-edit, #pb-dock-editor, #pb-quick-btn, #pb-quick-card, #pb-hud-toggle, #pb-clog-tools,
 #pb-map-tools, #pb-mkt-cur, #pb-sell-kind, #pb-card-overlay, .pb-mks-max, .pb-mks-mkt, .pb-mks-mkt-age, #pb-sell-worth, #pb-pk-sort,
 #pb-dex-sort, #pb-dex-menu, #pb-toast, #pb-route-overlay, #pb-prestige-auto, #pb-prestige-status,
-#pb-prestige-panel, #pb-chat-open, #pb-chat-hide, #pb-cap-ball-status, #pb-mh, .pb-dk-go, #pb-dk-menu, #pb-last-hunt, .pb-sale-tag, #pb-sale-card { display: none !important; }`;
+#pb-prestige-panel, #pb-chat-open, #pb-chat-hide, #pb-cap-ball-status, #pb-mh, .pb-dk-go, #pb-dk-menu, #pb-last-hunt, .pb-sale-tag, #pb-sale-card, .pb-evo { display: none !important; }`;
 const PANEL_CSS = [
   ...SKIN_CSS,
   () => (state.skin ? '' : SKIN_OFF_CSS),
@@ -70,6 +70,7 @@ const INJECT = {
   bagAlert: path.join(__dirname, 'inject', 'bag-alert.js'),
   lastHunt: path.join(__dirname, 'inject', 'last-hunt.js'),
   marketSales: path.join(__dirname, 'inject', 'market-sales.js'),
+  teamEvo: path.join(__dirname, 'inject', 'team-evo.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
