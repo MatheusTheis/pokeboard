@@ -1,7 +1,9 @@
 // Daily Kill: botão "Ir à hunt" em cada Pokémon do dia, que viaja até uma hunt dele pelo mapa do jogo. A pedido do
 // jogador, é a mesma viagem do menu da Pokédex (window.__pbDexHunts, em pokedex-game.js): aperta os botões que ele
-// apertaria (Mapa, a área e o "Viajar para" da hunt). Só valem as áreas que o nível de treinador já abriu; com uma
-// hunt só, vai direto; com mais de uma, um menu para escolher (da mais fraca para a mais forte).
+// apertaria (Mapa, a área e o "Viajar para" da hunt). Cada carta é de uma forma (Pinsir e Ancient Pinsir são cartas
+// e contagens diferentes), então vale só a hunt com o mesmo nome da carta e o botão vai direto para ela. Só se o mapa
+// não tiver hunt com esse nome, ficam as da espécie, com um menu para escolher. Áreas que o nível de treinador ainda
+// não abriu aparecem bloqueadas.
 (() => {
   if (window.__pbDailyKill) return;
   window.__pbDailyKill = true;
@@ -22,10 +24,18 @@
   const hereName = () => norm((document.querySelector(LOCATION)?.textContent || '').split('·').pop());
   const speciesOf = card => parseInt((card.querySelector(NUMBER)?.textContent || '').replace(/\D/g, ''), 10) || 0;
 
-  // Hunts da espécie, marcando as de área ainda fechada e a hunt onde você está.
+  // Hunt da carta (mesmo nome); a forma com número próprio é procurada pelo nome no mapa. Sem nenhuma com esse nome,
+  // as hunts da espécie. Marca as de área ainda fechada e a hunt onde você está.
+  const MARKERS = '/api/game/map-markers';
   function huntsOf(card) {
-    const lv = trainerLevel(), here = hereName();
-    return (window.__pbDexHunts?.of(speciesOf(card)) || []).map(h => ({
+    const lv = trainerLevel(), here = hereName(), name = norm(card.querySelector(NAME)?.textContent);
+    const all = window.__pbDexHunts?.of(speciesOf(card)) || [];
+    let list = all.filter(h => norm(h.name) === name);
+    if (!list.length) {
+      const byName = (window.__pbCache?.[MARKERS]?.data?.hunts || []).filter(h => norm(h.name) === name && +h.level > 0);
+      list = byName.length ? byName.map(h => ({ name: h.name, level: +h.level, area: h.area || '' })) : all;
+    }
+    return list.map(h => ({
       h,
       locked: !!h.area && (AREA_LEVEL[norm(h.area)] ?? Infinity) > lv,
       here: norm(h.name) === here,
