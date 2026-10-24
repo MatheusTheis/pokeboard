@@ -2160,3 +2160,7 @@
 .game-root .mkt2-window .mkt-tile[data-pb-sug-kind="request"]::before { background: var(--pb-pika-yellow); }
 .game-root .mkt2-window .mkt-tile[data-pb-sug-kind="mark"]::before { background: var(--pb-surface-raised); color: var(--pb-ink); }
 #pb-sale-card .pbsc-note { margin: 8px 10px 0; color: var(--pb-ink-muted); font-size: 12px; }
+
+/* Anunciar: de quando são os preços (ou "buscando…"), ao lado dos filtros (market-sales.js). */
+.game-root .mkt2-window #pb-price-status { margin-left: auto; align-self: center; color: var(--pb-ink-muted); font: 600 12px/16px var(--pb-font-body); white-space: nowrap; }
+.game-root .mkt2-window #pb-price-status:empty { display: none; }
