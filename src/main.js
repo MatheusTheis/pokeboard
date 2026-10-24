@@ -71,6 +71,7 @@ const INJECT = {
   lastHunt: path.join(__dirname, 'inject', 'last-hunt.js'),
   marketSales: path.join(__dirname, 'inject', 'market-sales.js'),
   teamEvo: path.join(__dirname, 'inject', 'team-evo.js'),
+  dailyPulse: path.join(__dirname, 'inject', 'daily-pulse.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
