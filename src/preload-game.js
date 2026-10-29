@@ -184,6 +184,13 @@ window.addEventListener('pb:dock-order-save', () => {
   try { ipcRenderer.send('pb:set-dock-order', JSON.parse(document.documentElement.dataset.pbDockOrder || '[]')); } catch {}
 });
 
+// Log do Mercado (market-log.js): a página manda cada resposta resumida por postMessage (passa de 1 MB, grande demais
+// para um atributo); daqui vai para o main gravar.
+window.addEventListener('message', e => {
+  if (e.source !== window || typeof e.data?.__pbMarketLog !== 'string') return;
+  ipcRenderer.send('pb:market-log', e.data.__pbMarketLog);
+});
+
 // Diagnóstico dos extras (mundo da página): uma linha em debug/diag.log, para conferir no jogo de verdade.
 window.addEventListener('pb:diag', () => ipcRenderer.send('pb:diag', String(document.documentElement.dataset.pbDiag || '').slice(0, 500)));
 
@@ -210,7 +217,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView', 'bagAlert', 'lastHunt', 'marketSales', 'teamEvo', 'dailyPulse']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView', 'bagAlert', 'lastHunt', 'marketSales', 'teamEvo', 'dailyPulse', 'marketLog']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }

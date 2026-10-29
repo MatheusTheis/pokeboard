@@ -1,6 +1,6 @@
 // Gravador (PB_RECORD=1): enquanto você joga, guarda em %APPDATA%\poke-board\debug\ material para
 // reestilizar e entender o jogo: endpoints chamados, exemplos das respostas JSON, mapa do DOM de cada
-// tela nova e um print dela, e o log do Mercado no tempo (mercado\AAAA-MM-DD.jsonl). Só leitura: não clica nem envia nada ao jogo. Nada de /api/auth (tokens).
+// tela nova e um print dela. (O log do Mercado no tempo é sempre ligado: market-log.js, mercado\*.jsonl.gz.) Só leitura: não clica nem envia nada ao jogo. Nada de /api/auth (tokens).
 const { app } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -133,41 +133,6 @@ function createRecorder({ views, isGameUrl, log }) {
     dirty = true;
   }
 
-  // ---------- Mercado: log no tempo (debug\mercado\AAAA-MM-DD.jsonl) ----------
-  // Cada resposta do Mercado que o jogo carregou (anúncios, páginas de Pokémon, espécies, histórico, ações) vira uma
-  // linha com a hora, para estudar preços e taxas. Sem IDs nem nomes de jogadores; seus anúncios ficam com mine: true.
-  // A mesma resposta repetida (mesmo conteúdo) em menos de 10 min não é gravada de novo.
-  const PRIVATE = /^(id|ids|_id|uuid|listingIds?|charIds?|characterIds?)$|seller|buyer|owner|user|player|account|nick|trainer|email|token|password|session|guild|clan/i;
-  function compact(v, depth = 0) {
-    if (Array.isArray(v)) return v.slice(0, 5000).map(x => compact(x, depth + 1));
-    if (v && typeof v === 'object') {
-      if (depth > 6) return '…';
-      const out = {};
-      for (const [k, x] of Object.entries(v)) if (k === 'sellers' || !PRIVATE.test(k)) out[k] = compact(x, depth + 1);  // sellers: só a contagem
-      return out;
-    }
-    return typeof v === 'string' && v.length > 120 ? v.slice(0, 120) + '…' : v;
-  }
-  const lastMarket = new Map();  // chave -> { hash, at }
-  function marketLog(i, p, v) {
-    if (!p.startsWith('/api/game/market')) return;
-    const data = v.data && typeof v.data === 'object' ? { ...v.data } : v.data;
-    if (data && Array.isArray(data.listings)) {
-      const mine = new Set((data.mine || []).flatMap(l => l?.ids || [l?.id]));
-      data.listings = data.listings.map(l => (l && mine.size && (l.ids || [l.id]).every(id => mine.has(id)) ? { ...l, mine: true } : l));
-    }
-    const body = JSON.stringify(compact({ data, req: v.req }));
-    const hash = crypto.createHash('md5').update(p + body).digest('hex');
-    const prev = lastMarket.get(p);
-    if (prev && prev.hash === hash && v.at - prev.at < 10 * 60e3) return;
-    lastMarket.set(p, { hash, at: v.at });
-    const day = new Date(v.at).toISOString().slice(0, 10);
-    try {
-      fs.appendFileSync(path.join(sub('mercado'), `${day}.jsonl`),
-        `{"at":${JSON.stringify(new Date(v.at).toISOString())},"conta":${i + 1},"chave":${JSON.stringify(p)},${body.slice(1)}\n`);
-    } catch (err) { log(`[gravador] falha no log do mercado: ${err.message}`); }
-  }
-
   // ---------- respostas JSON: um exemplo e o formato de cada endpoint ----------
   async function pull(i) {
     const wc = views[i]?.webContents;
@@ -179,7 +144,6 @@ function createRecorder({ views, isGameUrl, log }) {
       // Tokens nunca; pacotes de sprites são centenas de arquivos que não ajudam a reestilizar.
       if (p.startsWith('/api/auth/') || p.startsWith('/game/asset-packs/')) continue;
       const name = slug(normalize(p));
-      marketLog(i, p, v);
       try {
         fs.writeFileSync(path.join(sub('api'), `${name}.json`), JSON.stringify(redact(v.data), null, 1));
         fs.writeFileSync(path.join(sub('api'), `${name}.formato.txt`), `${p}\n(conta${i + 1}, ${new Date(v.at).toLocaleString('pt-BR')})\n\n${shape(v.data)}\n`);

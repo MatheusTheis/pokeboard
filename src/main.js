@@ -1,6 +1,7 @@
 // Processo principal: janela do board + 4 painéis do jogo, cada um com sessão própria.
 const { app, BrowserWindow, WebContentsView, Menu, Tray, Notification, dialog, ipcMain, safeStorage, shell } = require('electron');
 const path = require('path');
+const zlib = require('zlib');
 const fs = require('fs');
 const { createRecorder } = require('./recorder');
 
@@ -72,6 +73,7 @@ const INJECT = {
   marketSales: path.join(__dirname, 'inject', 'market-sales.js'),
   teamEvo: path.join(__dirname, 'inject', 'team-evo.js'),
   dailyPulse: path.join(__dirname, 'inject', 'daily-pulse.js'),
+  marketLog: path.join(__dirname, 'inject', 'market-log.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -646,6 +648,43 @@ ipcMain.on('pb:market-obs', (e, rows) => {
   if (!mktSendTimer) mktSendTimer = setTimeout(() => { mktSendTimer = null; views.forEach(v => sendMarketHistory(v.webContents)); }, 1000);
 });
 ipcMain.on('pb:market-history-want', e => { if (Number.isInteger(viewSlot(e))) sendMarketHistory(e.sender); });
+
+// ---------- log do Mercado, sempre ligado (market-log.js) ----------
+// Cada resposta do Mercado que o jogo carrega, resumida na página, vira uma linha em debug/mercado/AAAA-MM-DD.jsonl.gz
+// (cada linha é um bloco gzip; os leitores de gzip juntam os blocos). Para estudar preços e giro e melhorar o
+// precificador. Fica 60 dias e no máximo ~500 MB (saem os dias mais antigos).
+const MARKET_LOG_DAYS = 60, MARKET_LOG_MAX = 500 * 1048576;
+let marketLogPruned = '';
+function pruneMarketLog(dir) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (marketLogPruned === today) return;
+  marketLogPruned = today;
+  try {
+    const files = fs.readdirSync(dir).filter(f => /^\d{4}-\d{2}-\d{2}\.jsonl(\.gz)?$/.test(f)).sort();
+    const cutoff = new Date(Date.now() - MARKET_LOG_DAYS * 864e5).toISOString().slice(0, 10);
+    let total = files.reduce((t, f) => t + fs.statSync(path.join(dir, f)).size, 0);
+    for (const f of files) {
+      if (f.slice(0, 10) >= cutoff && total <= MARKET_LOG_MAX) break;
+      total -= fs.statSync(path.join(dir, f)).size;
+      fs.rmSync(path.join(dir, f), { force: true });
+    }
+  } catch {}
+}
+ipcMain.on('pb:market-log', (e, body) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0 || typeof body !== 'string' || body.length > 16 * 1048576) return;
+  let rec;
+  try { rec = JSON.parse(body); } catch { return; }
+  if (!rec || typeof rec.chave !== 'string' || !rec.chave.startsWith('/api/game/market')) return;
+  try {
+    const dir = path.join(app.getPath('userData'), 'debug', 'mercado');
+    fs.mkdirSync(dir, { recursive: true });
+    pruneMarketLog(dir);
+    const now = new Date();
+    const line = `{"at":${JSON.stringify(now.toISOString())},"conta":${slot + 1},${body.slice(1)}\n`;
+    fs.appendFileSync(path.join(dir, `${now.toISOString().slice(0, 10)}.jsonl.gz`), zlib.gzipSync(line));
+  } catch (err) { console.error('[PokeBoard] log do mercado', err); }
+});
 
 // ---------- diagnóstico dos extras (debug/diag.log) ----------
 // Uma linha por evento que os scripts da página mandam (pb:diag), com a conta; até ~512 KB (fica o fim).
