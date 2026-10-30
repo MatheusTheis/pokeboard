@@ -9,6 +9,8 @@
 //   Anunciar) e carregamos só as categorias deles pela própria tela (o estado da categoria, como um clique); de novo
 //   ao reabrir depois de 2 min e a cada 10 min com o Mercado aberto. A categoria volta a ser a que estava; se você
 //   trocar de categoria no meio, paramos e fica a sua escolha.
+// - Botão "Atualizar preços" na barra de abas: a pedido, busca de novo as categorias dos seus itens, com a tela travada
+//   e uma barra de progresso, e diz item por item se compensa anunciar ou vender para o Mark.
 // Itens: as vendas do histórico com o mesmo nome e preço depois da criação do anúncio são dele (e vemos a pilha
 // diminuir). Pokémon (1 por anúncio): se o anúncio ainda está lá, não vendeu.
 // Tudo por conta (localStorage do painel). Só lê; não anuncia nem retira nada. window.__pbSales serve o Anunciar.
@@ -229,6 +231,7 @@
     if (!win?.isConnected) return;
     applyTiles();
     mountStatus();
+    mountRefresh();
     const now = Date.now();
     for (const el of win.querySelectorAll(ITEMS)) {
       const l = listingOf(el), mine = !!l && mineIds.has(idOf(l));
@@ -362,10 +365,11 @@
     }
     return null;
   }
+  const marketCat = x => MARKET_CAT[x.key.split(':')[0]] || MARKET_CAT[x.cat] || 'Items';
   const neededCats = () => {
     const list = sellables();
     if (!list) return [...CATS];
-    return CATS.filter(c => list.some(x => (MARKET_CAT[x.key.split(':')[0]] || MARKET_CAT[x.cat] || 'Items') === c));
+    return CATS.filter(c => list.some(x => marketCat(x) === c));
   };
   const status = document.createElement('span');
   status.id = 'pb-price-status';
@@ -393,35 +397,44 @@
   }
   let lastWhy = '';
   const why = m => { if (m !== lastWhy) { lastWhy = m; diag(m); } };
-  async function scanCategories(reason) {
+  // reason 'open' | 'tick' (automática, com intervalo) ou 'manual' (Atualizar preços: na hora, com as categorias dadas,
+  // o progresso em step e um pedido de parar em cancelled). Devolve { cats, fresh: {categoria: resposta nova}, aborted
+  // (você trocou de categoria), stopped (cancelado), closed (o Mercado fechou) } ou null se nem começou.
+  async function scanCategories(reason, { cats = neededCats(), step = () => {}, cancelled = () => false } = {}) {
     const wait = reason === 'open' ? SCAN_REOPEN_MS : SCAN_EVERY_MS;
-    if (scanning || Date.now() - lastScan < wait || !win?.isConnected) return;
-    const cats = neededCats();
-    if (!cats.length) return;
+    if (scanning || (reason !== 'manual' && Date.now() - lastScan < wait) || !win?.isConnected) return null;
+    if (!cats.length) return null;
     const fx = categoryFetcher(), q = fx ? null : categoryQueue();
-    if (!fx && !q) { why('não achei a busca por categoria da tela'); return; }
+    if (!fx && !q) { why('não achei a busca por categoria da tela'); return null; }
     scanning = true;
     lastScan = Date.now();
     const original = fx ? fx.cat : q.lastRenderedState;
-    const t0 = Date.now(), done = [];
-    let aborted = false, mine = original;
-    diag(`buscando ${cats.join(', ')} (${fx ? 'função da tela' : 'estado da categoria'}, categoria atual: ${original ?? 'All'})`);
+    const t0 = Date.now(), done = [], fresh = {};
+    let aborted = false, stopped = false, mine = original, restoring = null;
+    diag(`buscando ${cats.join(', ')} (${reason === 'manual' ? 'Atualizar preços, ' : ''}${fx ? 'função da tela' : 'estado da categoria'}, categoria atual: ${original ?? 'All'})`);
     try {
       for (const [n, c] of cats.entries()) {
         if (!win?.isConnected) break;
+        if (cancelled()) { stopped = true; break; }
         const now = fx ? categoryFetcher()?.cat : q.lastRenderedState;
         if (now !== (fx ? original : mine)) { aborted = true; break; }  // você trocou de categoria: fica a sua escolha
         say(`Preços: buscando ${c} (${n + 1}/${cats.length})…`);
-        const key = `${API}?category=${c}`, since = Date.now();
-        if (fx) await Promise.race([Promise.resolve(fx.fn(c)).catch(() => {}), sleep(SCAN_WAIT_MS)]);
+        step(n, cats.length, c);
+        const key = `${API}?category=${c}`, since = Date.now(), end = since + SCAN_WAIT_MS;
+        const isFresh = () => (window.__pbCache?.[key]?.at || 0) >= since;
+        let pending = null;
+        if (fx) pending = Promise.resolve().then(() => fx.fn(c)).catch(() => {});
         else { q.dispatch(c); mine = c; }
-        for (const end = Date.now() + SCAN_WAIT_MS; Date.now() < end && !((window.__pbCache?.[key]?.at || 0) >= since);) await sleep(150);
-        done.push(`${c} ${(window.__pbCache?.[key]?.at || 0) >= since ? `ok (${window.__pbCache[key].data?.listings?.length ?? '?'} anúncios)` : 'sem resposta'}`);
+        while (Date.now() < end && !isFresh() && !cancelled()) await sleep(150);
+        // A próxima busca só depois desta terminar: a tela fica com a lista da última que respondeu.
+        if (pending) await Promise.race([pending, sleep(Math.max(0, end - Date.now()))]);
+        if (isFresh()) fresh[c] = window.__pbCache[key];
+        done.push(`${c} ${fresh[c] ? `ok (${fresh[c].data?.listings?.length ?? '?'} anúncios)` : 'sem resposta'}`);
         await sleep(SCAN_GAP_MS);
       }
     } finally {
       if (!aborted && win?.isConnected) {
-        if (fx) { try { fx.fn(original); } catch {} }                         // a tela volta à lista da categoria dela
+        if (fx) restoring = Promise.resolve().then(() => fx.fn(original)).catch(() => {});  // a tela volta à lista da categoria dela
         else if (q.lastRenderedState === mine && mine !== original) q.dispatch(original);
       }
       scanning = false;
@@ -429,8 +442,11 @@
       say('');
       dirtyMarket();
       schedule();
-      diag(`${aborted ? 'parado (você trocou de categoria)' : 'pronto'} em ${((Date.now() - t0) / 1000).toFixed(1)} s: ${done.join(' · ') || 'nada'}`);
+      diag(`${aborted ? 'parado (você trocou de categoria)' : stopped ? 'cancelado' : 'pronto'} em ${((Date.now() - t0) / 1000).toFixed(1)} s: ${done.join(' · ') || 'nada'}`);
     }
+    // A pedido, a tela só destrava com a lista da categoria dela de volta.
+    if (reason === 'manual' && restoring) await Promise.race([restoring, sleep(SCAN_WAIT_MS)]);
+    return { cats, fresh, aborted, stopped, closed: !win?.isConnected };
   }
   // Status no Anunciar, ao lado dos filtros: buscando, ou de quando são os preços.
   function mountStatus() {
@@ -442,6 +458,193 @@
     const oldest = ats.length && ats.every(Boolean) ? Math.min(...ats) : 0;
     const t = oldest ? `Preços de há ${span(Date.now() - oldest)}` : 'Preços: aguardando o Mercado';
     if (status.textContent !== t) status.textContent = t;
+  }
+
+  // ---------- Atualizar preços: Mercado ou Mark, item por item ----------
+  // A pedido (botão no fim da barra de abas): busca de novo, pela própria tela, as categorias dos itens da mochila que
+  // você pode anunciar (Pokémon, Pokébolas e Diamonds ficam de fora: o Mark não paga por eles), pega o menor preço em
+  // dollars dos outros em cada item e compara com o que o Mark paga (npcPrice). O Mercado só ganha se render, já sem a
+  // taxa, pelo menos MIN_PROFIT a mais que o Mark. Enquanto busca, uma camada por cima trava a tela (cliques e teclas)
+  // e mostra o progresso; no fim, o resultado por item. Só consulta: não anuncia nem vende nada.
+  const MIN_PROFIT = 0.3;
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const pct = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`;
+  const refreshBtn = document.createElement('button');
+  refreshBtn.type = 'button';
+  refreshBtn.id = 'pb-price-refresh';
+  refreshBtn.textContent = '⟳ Atualizar preços';
+  refreshBtn.title = `Buscar agora o menor preço em dollars de cada item seu no Mercado e ver se compensa anunciar `
+    + `(${pct(MIN_PROFIT)} ou mais sobre o Mark, já sem a taxa) ou vender para o Mark. Só consulta.`;
+  refreshBtn.addEventListener('click', e => { e.stopPropagation(); refreshPrices(); });
+  function mountRefresh() {
+    const tabs = win.querySelector(TABS);
+    if (!tabs) { if (refreshBtn.isConnected) refreshBtn.remove(); return; }
+    if (tabs.lastElementChild !== refreshBtn) tabs.append(refreshBtn);
+  }
+
+  const lock = document.createElement('div');
+  lock.id = 'pb-price-lock';
+  lock.hidden = true;
+  lock.setAttribute('role', 'dialog');
+  lock.setAttribute('aria-modal', 'true');
+  lock.setAttribute('aria-labelledby', 'pb-pl-title');
+  lock.innerHTML = `<div class="pbpl-box"><div class="pbpl-head"><h2 id="pb-pl-title">Atualizar preços</h2>
+    <button type="button" class="pbpl-x" data-act="close" aria-label="Fechar">×</button></div>
+    <div class="pbpl-body"></div><div class="pbpl-foot"></div></div>`;
+  const lockBody = lock.querySelector('.pbpl-body'), lockFoot = lock.querySelector('.pbpl-foot');
+  let phase = '', cancelAsk = false, running = false, focusBack = null;
+  // Nada passa da camada para o jogo: cliques e teclas param aqui (o jogo ouve no document).
+  for (const ev of ['pointerdown', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu']) {
+    lock.addEventListener(ev, e => {
+      e.stopPropagation();
+      if (ev !== 'click') return;
+      const act = e.target.closest?.('[data-act]')?.dataset.act;
+      if (act === 'cancel' && phase === 'busy' && !cancelAsk) { cancelAsk = true; lockFoot.querySelector('button').textContent = 'Cancelando…'; }
+      else if (act === 'close' && phase !== 'busy') closeLock();
+      else if (act === 'again' && phase !== 'busy') refreshPrices();
+    });
+  }
+  for (const ev of ['keydown', 'keyup', 'keypress']) {
+    window.addEventListener(ev, e => {
+      if (lock.hidden) return;
+      e.stopImmediatePropagation();
+      if (e.key === 'Escape') { e.preventDefault(); if (ev === 'keydown' && phase !== 'busy') closeLock(); return; }
+      if (lock.contains(e.target)) return;                // dentro da camada, Tab, Enter e rolagem continuam
+      e.preventDefault();
+      if (ev === 'keydown' && e.key === 'Tab') lockFoot.querySelector('button')?.focus();  // o foco volta para a camada
+    }, true);
+  }
+  function openLock() {
+    hide();
+    if (lock.hidden) focusBack = document.activeElement;
+    if (lock.parentElement !== document.body) document.body.append(lock);
+    lock.hidden = false;
+  }
+  function closeLock() {
+    lock.hidden = true;
+    phase = '';
+    lockBody.innerHTML = lockFoot.innerHTML = '';
+    (focusBack?.isConnected ? focusBack : refreshBtn.isConnected ? refreshBtn : null)?.focus?.();
+  }
+  function progress(n, total, msg) {
+    const v = Math.round((n / total) * 100);
+    if (phase !== 'busy') {
+      phase = 'busy';
+      lock.dataset.phase = 'busy';
+      lockBody.innerHTML = `<p class="pbpl-msg" aria-live="polite"></p>
+        <div class="pbpl-bar" role="progressbar" aria-label="Progresso da busca" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+        <p class="pbpl-note">A tela fica travada até terminar. Só consulta: nada é anunciado nem vendido.</p>`;
+      lockFoot.innerHTML = '<button type="button" data-act="cancel">Cancelar</button>';
+      lockFoot.querySelector('button').focus();
+    }
+    lockBody.querySelector('.pbpl-msg').textContent = msg;
+    const bar = lockBody.querySelector('.pbpl-bar');
+    bar.setAttribute('aria-valuenow', String(v));
+    bar.firstElementChild.style.width = `${v}%`;
+  }
+  function finish(kind, html, foot) {
+    phase = kind;
+    lock.dataset.phase = kind;
+    lockBody.innerHTML = html;
+    lockFoot.innerHTML = foot;
+    lockFoot.querySelector('button:last-child')?.focus();
+  }
+  const FOOT = '<button type="button" data-act="again">⟳ Buscar de novo</button><button type="button" class="pbpl-main" data-act="close">Fechar</button>';
+  const fail = msg => finish('error', `<p class="pbpl-msg">${esc(msg)}</p>`, FOOT);
+
+  // Menor preço em dollars dos outros, por item, só nas respostas novas desta busca (a lista geral pode ser mais velha
+  // e trazer anúncio que já vendeu): pelo nome e, sem ele, pelo refId, dentro da categoria do item.
+  function cheapestIn(fresh) {
+    const best = new Map();
+    const put = (k, x) => { const b = best.get(k); if (!b || x.price < b.price) best.set(k, x); };
+    for (const [cat, hit] of Object.entries(fresh)) {
+      const own = new Set((hit.data?.mine || []).flatMap(l => l.ids || [l.id]).filter(id => id != null));
+      for (const x of hit.data?.listings || []) {
+        if (!x?.name || x.kind === 'pokemon' || x.currency !== 'GOLD' || x.offerOnly || !(x.price > 0)) continue;
+        const ids = (x.ids || [x.id]).filter(id => id != null);
+        if ((ids.length && ids.every(id => own.has(id))) || mineIds.has(idOf(x))) continue;
+        put(`${cat}|n:${norm(x.name)}`, x);
+        if (x.refId != null) put(`${cat}|r:${x.refId}`, x);
+      }
+    }
+    return best;
+  }
+  function compare(items, fresh) {
+    const best = cheapestIn(fresh), P = window.__pbPrices;
+    const feeOf = total => (P ? P.fee(total) : Math.min(1e6, Math.floor(total * 0.03)));
+    const rows = items.map(x => {
+      const cat = marketCat(x), name = x.label, qty = Math.max(1, Number(x.max) || 1);
+      const npc = Number(x.npc ?? P?.npc(name)) || 0;
+      const icon = typeof x.icon === 'string' && /^(\/|https?:|data:image\/)/.test(x.icon) ? x.icon : '';
+      const r = { name, qty, npc, icon, cat, markTotal: npc * qty, p: null, net: null, gain: 0, ratio: null };
+      if (!fresh[cat]) return { ...r, dest: npc > 0 ? 'mark' : 'none', why: `${cat} não respondeu` };
+      const l = best.get(`${cat}|n:${norm(name)}`) || best.get(`${cat}|r:${x.key.split(':')[1]}`);
+      if (!l) return { ...r, dest: npc > 0 ? 'mark' : 'none', why: 'ninguém vendendo em dollars' };
+      const total = l.price * qty, net = (total - feeOf(total)) / qty;
+      Object.assign(r, { p: l.price, net, netTotal: total - feeOf(total), ratio: npc > 0 ? net / npc - 1 : null });
+      if (npc > 0 && net < npc * (1 + MIN_PROFIT)) return { ...r, dest: 'mark', why: `Mercado ${pct(r.ratio)} (precisa ${pct(MIN_PROFIT)})` };
+      return { ...r, dest: 'market', gain: r.netTotal - r.markTotal };
+    });
+    const order = { market: 0, mark: 1, none: 2 };
+    return rows.sort((a, b) => order[a.dest] - order[b.dest] || b.gain - a.gain || b.markTotal - a.markTotal || a.name.localeCompare(b.name));
+  }
+  function report(rows, r, ms) {
+    const mkt = rows.filter(x => x.dest === 'market'), mark = rows.filter(x => x.dest === 'mark');
+    const gain = mkt.reduce((t, x) => t + x.gain, 0), markSum = mark.reduce((t, x) => t + x.markTotal, 0);
+    const fee = `${Math.round((window.__pbPrices?.FEE ?? 0.03) * 100)}%`, missed = r.cats.filter(c => !r.fresh[c]);
+    const dest = { market: 'Mercado', mark: 'Mark', none: '—' };
+    const row = x => `<tr data-dest="${x.dest}">
+      <th scope="row">${x.icon ? `<img src="${esc(x.icon)}" alt="">` : ''}${esc(x.name)}</th>
+      <td>${fmt(x.qty)}</td>
+      <td>${x.npc > 0 ? `💲${fmt(x.npc)}` : '<small>não compra</small>'}</td>
+      <td>${x.p != null ? `💲${fmt(x.p)}<small>líquido 💲${fmt(Math.floor(x.net))}</small>` : '—'}</td>
+      <td><span class="pbpl-dest">${dest[x.dest]}</span></td>
+      <td>${x.dest === 'market' ? `💲${fmt(x.netTotal)}` : x.dest === 'mark' ? `💲${fmt(x.markTotal)}` : '—'}</td>
+      <td>${x.dest === 'market' ? `<b>+💲${fmt(x.gain)}</b><small>${x.ratio != null ? `${pct(x.ratio)} sobre o Mark` : 'o Mark não compra'}</small>` : `<small>${esc(x.why)}</small>`}</td>
+    </tr>`;
+    const sum = (mkt.length
+      ? `<b>${mkt.length}</b> de ${rows.length} itens rendem ${pct(MIN_PROFIT)} ou mais no Mercado: <b class="good">+💲${fmt(gain)}</b> sobre vender para o Mark.`
+      : `Nenhum dos ${rows.length} itens rende ${pct(MIN_PROFIT)} ou mais no Mercado.`)
+      + (mark.length ? ` ${mark.length} para o Mark (💲${fmt(markSum)}).` : '');
+    finish('done', `<p class="pbpl-sum">${sum}</p>
+      <div class="pbpl-table" tabindex="0"><table>
+        <thead><tr><th scope="col">Item</th><th scope="col">Qtd</th><th scope="col">Mark/un</th><th scope="col">Mercado/un</th>
+          <th scope="col">Vender no</th><th scope="col">Recebe</th><th scope="col">vs Mark</th></tr></thead>
+        <tbody>${rows.map(row).join('')}</tbody></table></div>
+      <p class="pbpl-note">Menor preço em dollars dos outros jogadores agora (${esc(r.cats.join(', '))}, em ${(ms / 1000).toFixed(1)} s); líquido = menos a taxa de ${fee} do Mercado.
+        O Mercado só vale com ${pct(MIN_PROFIT)} ou mais sobre o Mark.${missed.length ? ` <b>Sem resposta: ${esc(missed.join(', '))}.</b>` : ''} Só consulta: nada foi anunciado nem vendido.</p>`, FOOT);
+  }
+  async function refreshPrices() {
+    if (running || !win?.isConnected) return;
+    running = true;
+    cancelAsk = false;
+    phase = '';
+    openLock();
+    try {
+      const all = sellables(), items = (all || []).filter(x => /^item:/.test(x.key || ''));
+      if (!items.length) return fail(all ? 'Você não tem itens da mochila para anunciar.' : 'Não achei a lista dos seus itens na tela do Mercado. Abra o Anunciar uma vez e tente de novo.');
+      const cats = CATS.filter(c => items.some(x => marketCat(x) === c)), total = cats.length + 1, t0 = Date.now();
+      progress(0, total, 'Começando…');
+      for (const end = Date.now() + 4 * SCAN_WAIT_MS; scanning && Date.now() < end && !cancelAsk;) {
+        progress(0, total, 'Esperando a busca automática terminar…');
+        await sleep(200);
+      }
+      if (cancelAsk) return closeLock();
+      const r = await scanCategories('manual', { cats, step: (n, m, c) => progress(n + 0.5, total, `Buscando ${c} no Mercado (${n + 1}/${m})…`), cancelled: () => cancelAsk });
+      if (!r) return fail(scanning ? 'Outra busca de preços ainda está rodando. Tente de novo em instantes.' : 'Não achei a busca por categoria da tela do Mercado.');
+      if (r.stopped) return closeLock();
+      if (r.closed) return fail('O Mercado fechou no meio da busca.');
+      if (r.aborted) return fail('A categoria do Mercado mudou no meio da busca. Tente de novo.');
+      if (!Object.keys(r.fresh).length) return fail(`O Mercado não respondeu (${cats.join(', ')}). Tente de novo.`);
+      progress(total - 0.5, total, 'Comparando com o Mark…');
+      const rows = compare(items, r.fresh);
+      diag(`Atualizar preços: ${rows.length} itens, ${rows.filter(x => x.dest === 'market').length} no Mercado, ${rows.filter(x => x.dest === 'mark').length} no Mark`);
+      report(rows, r, Date.now() - t0);
+    } catch (err) {
+      fail(`Algo deu errado na busca: ${err?.message || err}`);
+    } finally {
+      running = false;
+    }
   }
 
   // ---------- acompanhar a janela do Mercado ----------

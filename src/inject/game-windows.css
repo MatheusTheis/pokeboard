@@ -2212,3 +2212,154 @@
 /* Anunciar: uma etiqueta por card. Com o precificador, o ganho do Vale vender (canto esquerdo) sai do card; as contas
    ficam no cartão ao passar o mouse. */
 .game-root .mkt2-window .mkt-tile[data-pb-sug][data-pb-gain]::after { display: none !important; }
+
+/* ---------- Mercado: Atualizar preços (market-sales.js) ----------
+   Botão no fim da barra de abas; enquanto busca, uma camada por cima de tudo trava a tela com a barra de progresso,
+   e no fim mostra Mercado ou Mark para cada item. */
+.game-root .mkt2-window .mkt2-tabs > #pb-price-refresh { flex: none; align-self: center; margin: 0 4px 4px auto; }
+#pb-price-refresh {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-pika-yellow);
+  color: var(--pb-on-yellow);
+  box-shadow: var(--pb-frame-ink), var(--pb-shadow-press);
+  font: 700 14px/18px var(--pb-font-body);
+  white-space: nowrap;
+  cursor: pointer;
+}
+#pb-price-refresh:hover { filter: brightness(1.08); }
+#pb-price-refresh:active { transform: translate(2px, 2px); box-shadow: var(--pb-frame-ink); }
+#pb-price-refresh:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-price-lock {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 7, 10, .6);
+  cursor: wait;
+}
+#pb-price-lock[hidden] { display: none; }
+#pb-price-lock * { box-sizing: border-box; }
+#pb-price-lock .pbpl-box {
+  width: min(440px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--pb-surface);
+  box-shadow: var(--pb-frame-ink), 8px 8px 0 0 var(--pb-shadow-ink);
+  color: var(--pb-ink);
+  font: 500 14px/18px var(--pb-font-body);
+  cursor: default;
+}
+#pb-price-lock[data-phase="done"] .pbpl-box { width: min(880px, 100%); }
+#pb-price-lock .pbpl-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 44px;
+  padding: 0 8px 4px 46px;
+  background: var(--pb-dex-red);
+  box-shadow: inset 0 -4px 0 0 var(--pb-dex-red-deep);
+}
+#pb-price-lock .pbpl-head::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: calc(50% - 2px);
+  width: 20px;
+  height: 20px;
+  border-radius: var(--pb-radius-ball);
+  background: var(--pb-poke-blue);
+  box-shadow: 0 0 0 3px var(--pb-on-red), 0 0 0 5px var(--pb-shadow-ink);
+  transform: translateY(-50%);
+}
+#pb-price-lock[data-phase="busy"] .pbpl-head::before { animation: pbpl-blink .8s steps(2, jump-none) infinite; }
+#pb-price-lock h2 { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--pb-on-red); font: 400 14px/24px var(--pb-font-pixel); text-transform: uppercase; }
+#pb-price-lock .pbpl-x { padding: 2px 6px; border: 0; background: none; color: var(--pb-on-red); font: 600 22px/1 var(--pb-font-body); cursor: pointer; }
+#pb-price-lock[data-phase="busy"] .pbpl-x { visibility: hidden; }
+#pb-price-lock .pbpl-x:focus-visible { outline: 2px solid var(--pb-on-red); outline-offset: 2px; }
+#pb-price-lock .pbpl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 14px 12px;
+  overflow: auto;
+  background: var(--pb-screen);
+  box-shadow: var(--pb-shadow-bevel);
+}
+#pb-price-lock .pbpl-msg, #pb-price-lock .pbpl-sum { margin: 0; font-weight: 700; }
+#pb-price-lock .pbpl-sum b.good { color: var(--pb-success); }
+#pb-price-lock .pbpl-note { margin: 0; color: var(--pb-ink-muted); font-size: 12px; line-height: 16px; }
+#pb-price-lock .pbpl-note b { color: var(--pb-dex-red-ink); }
+/* Barra segmentada: blocos amarelos, e o último piscando enquanto busca. */
+#pb-price-lock .pbpl-bar { height: 22px; padding: 3px; background: var(--pb-bar-track); box-shadow: var(--pb-frame-border); }
+#pb-price-lock .pbpl-bar > i {
+  position: relative;
+  display: block;
+  width: 0;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 10px, transparent 10px 12px);
+  transition: width .3s steps(6, end);
+}
+#pb-price-lock .pbpl-bar > i::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 10px;
+  margin-left: 2px;
+  background: var(--pb-bar-fill);
+  animation: pbpl-blink .8s steps(2, jump-none) infinite;
+}
+@keyframes pbpl-blink { 0% { opacity: 1; } 100% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) {
+  #pb-price-lock .pbpl-head::before, #pb-price-lock .pbpl-bar > i::after { animation: none; }
+  #pb-price-lock .pbpl-bar > i { transition: none; }
+}
+/* Resultado: tabela com o cabeçalho preso ao rolar. */
+#pb-price-lock .pbpl-table { min-height: 0; max-height: min(56vh, 520px); overflow: auto; background: var(--pb-surface); box-shadow: var(--pb-frame-border); }
+#pb-price-lock .pbpl-table:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
+#pb-price-lock table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 17px; }
+#pb-price-lock thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 8px;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink-muted);
+  font: 400 9px/14px var(--pb-font-pixel);
+  text-align: right;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+#pb-price-lock thead th:first-child { text-align: left; }
+#pb-price-lock tbody :is(th, td) { padding: 5px 8px; border-top: 2px solid var(--pb-screen); text-align: right; vertical-align: middle; white-space: nowrap; }
+#pb-price-lock tbody th { min-width: 150px; font-weight: 700; text-align: left; white-space: normal; }
+#pb-price-lock tbody th img { width: 24px; height: 24px; margin: -4px 6px -4px 0; vertical-align: middle; object-fit: contain; image-rendering: pixelated; }
+#pb-price-lock tbody small { display: block; color: var(--pb-ink-muted); font-size: 11px; font-weight: 500; line-height: 14px; }
+#pb-price-lock .pbpl-dest { display: inline-block; padding: 1px 6px; background: var(--pb-surface-raised); color: var(--pb-ink); box-shadow: 0 0 0 1px var(--pb-shadow-ink); font-weight: 700; }
+#pb-price-lock tr[data-dest="market"] .pbpl-dest { background: var(--pb-success); color: var(--pb-on-success); }
+#pb-price-lock tr[data-dest="market"] td:last-child b { color: var(--pb-success); }
+#pb-price-lock tr[data-dest="none"] { opacity: .6; }
+#pb-price-lock .pbpl-foot { display: flex; flex: none; justify-content: flex-end; gap: 8px; padding: 10px 12px; }
+#pb-price-lock .pbpl-foot:empty { display: none; }
+#pb-price-lock .pbpl-foot button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 0;
+  background: var(--pb-surface-raised);
+  color: var(--pb-ink);
+  box-shadow: var(--pb-frame-border), var(--pb-shadow-press);
+  font: 700 14px/18px var(--pb-font-body);
+  cursor: pointer;
+}
+#pb-price-lock .pbpl-foot button.pbpl-main { background: var(--pb-pika-yellow); color: var(--pb-on-yellow); box-shadow: var(--pb-frame-ink), var(--pb-shadow-press); }
+#pb-price-lock .pbpl-foot button:active { transform: translate(2px, 2px); }
+#pb-price-lock .pbpl-foot button:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
