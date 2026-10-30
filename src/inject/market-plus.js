@@ -87,14 +87,15 @@
     kindBar.dataset.kind = sellKind;
   }
 
-  // ---------- Anunciar › "Vale vender": primeiro os itens que rendem mais no Mercado do que no Mark ----------
-  // Para cada item da grade: o anúncio mais barato em dollars do Mercado menos a taxa, contra o que o Mark paga
-  // (window.__pbPrices, mais abaixo). Ligado, os que rendem mais no Mercado vão para o começo, do maior ganho total
-  // (ganho por unidade × quantidade) para o menor, com o ganho no canto; os outros ficam apagados no fim.
+  // ---------- Anunciar › "Vale vender": só os itens que valem mais no Mercado do que no Mark ----------
+  // A regra é a de window.__pbSales (market-sales.js), a mesma do Atualizar preços e do Vender da Loja do Mark: o menor
+  // preço em dollars dos outros, já sem a taxa, rendendo pelo menos 30% a mais que o Mark (e sem seus anúncios dele
+  // parados). Ligado, a grade mostra só esses, do maior ganho sobre o Mark para o menor; os outros somem até desligar.
+  // Quanto rende vender todas fica na etiqueta de cada card (market-sales.js).
   // Só ordem (CSS order) e atributos nos cards do jogo; escolher e anunciar continua nos botões do jogo.
   // Ligado, clicar num item também preenche o formulário do jogo: moeda dollars, quantidade = tudo que você tem e
-  // preço = o anúncio mais barato (nunca abaixo do que o Mark paga, que o jogo não aceita). Quem anuncia é o botão
-  // Anunciar do jogo, com a confirmação dele.
+  // preço = 1 abaixo do mais barato dos outros (nunca abaixo do que o Mark paga, que o jogo não aceita). Quem anuncia é
+  // o botão Anunciar do jogo, com a confirmação dele.
   const SELL_PICK = ':scope > .mkt-pick:not(.mkt-pick-pk)';  // grade de itens do Anunciar (a de Pokémon é .mkt-pick-pk)
   const num = s => Number(String(s || '').replace(/\D/g, '')) || 0;
   const fmt = n => n.toLocaleString('pt-BR');
@@ -103,41 +104,38 @@
   const worthBtn = document.createElement('button');
   worthBtn.type = 'button';
   worthBtn.id = 'pb-sell-worth';
-  worthBtn.title = 'Mostrar primeiro os itens que rendem mais vendendo no Mercado (já sem a taxa) do que para o Mark';
   worthBtn.addEventListener('click', e => { e.stopPropagation(); worthOn = !worthOn; apply(); });
   const setAttr = (el, k, v) => { if (v == null) { if (el.hasAttribute(k)) el.removeAttribute(k); } else if (el.getAttribute(k) !== v) el.setAttribute(k, v); };
   function mountWorth(form) {
-    const P = window.__pbPrices;
+    const S = window.__pbSales;
     const pick = form.querySelector(SELL_PICK);
     const fbar = pick?.previousElementSibling?.matches('.mk-fbar') ? pick.previousElementSibling : null;
-    if (!P || !fbar) { worthBtn.remove(); return; }
+    if (!S || !fbar) { worthBtn.remove(); return; }
     if (worthBtn.parentElement !== fbar) fbar.append(worthBtn);
-    const market = P.market(), fee = `${Math.round(P.FEE * 100)}%`;
     const rows = [...pick.querySelectorAll('.mkt-tile')].map((t, i) => {
-      const name = t.querySelector('img')?.alt || '';
-      const m = market?.items[P.norm(name)], mark = P.npc(name), qty = num(t.querySelector('.mkt-tile-qty')?.textContent) || 1;
-      if (!m || mark === undefined) return { t, i, name, gain: null, why: !m ? 'sem anúncio em dollars no Mercado' : 'sem o preço do Mark' };
-      const v = P.net(m.p), total = m.p * qty;
-      return { t, i, name, v, mark, qty, m, gain: total - P.fee(total) - mark * qty };
+      const name = t.querySelector('img')?.alt || '', qty = num(t.querySelector('.mkt-tile-qty')?.textContent) || 1;
+      return { t, i, v: name ? S.suggest(name, qty).verdict : null };
     });
-    const good = rows.filter(r => r.gain > 0).sort((a, b) => b.gain - a.gain);
+    const good = rows.filter(r => r.v?.dest === 'market').sort((a, b) => b.v.gain - a.v.gain);
     good.forEach((r, k) => { r.order = k; });
     for (const r of rows) {
       if (!worthOn) {
-        if (r.t.hasAttribute('data-pb-worth')) { r.t.style.removeProperty('order'); ['data-pb-worth', 'data-pb-gain', 'title'].forEach(k => r.t.removeAttribute(k)); }
+        if (r.t.hasAttribute('data-pb-worth')) { r.t.style.removeProperty('order'); r.t.removeAttribute('data-pb-worth'); }
         continue;
       }
-      const yes = r.gain > 0;
+      const yes = r.v?.dest === 'market';
       const order = String(yes ? r.order : 10000 + r.i);
       if (r.t.style.order !== order) r.t.style.order = order;
-      setAttr(r.t, 'data-pb-worth', yes ? 'yes' : 'no');
-      setAttr(r.t, 'data-pb-gain', yes ? `+${compact(r.gain)}` : null);
-      setAttr(r.t, 'title', r.gain === null ? `${r.name}: ${r.why}.`
-        : `${r.name}: no Mercado rende 💲${fmt(r.v)}/un (anúncio mais barato 💲${fmt(r.m.p)}, menos ${fee}); o Mark paga 💲${fmt(r.mark)}.`
-          + (yes ? ` Com ${fmt(r.qty)} un: +💲${fmt(r.gain)} vendendo no Mercado.` : ' Vender para o Mark rende igual ou mais.'));
+      setAttr(r.t, 'data-pb-worth', yes ? 'yes' : 'no');  // "no" some (game-windows.css)
     }
+    const need = `+${Math.round(S.MIN_PROFIT * 100)}%`;
+    setAttr(pick, 'data-pb-worth-none', worthOn && !good.length
+      ? `Nenhum item rende ${need} ou mais no Mercado com os preços de agora. ⟳ Atualizar preços busca de novo.` : null);
     const label = worthOn ? `💲 Vale vender: ${good.length}` : '💲 Vale vender';
     if (worthBtn.textContent !== label) worthBtn.textContent = label;  // só se mudou: o texto também é mudança no DOM observado
+    const known = rows.filter(r => r.v && r.v.dest !== 'unknown').length;
+    setAttr(worthBtn, 'title', `Mostrar só os itens que rendem ${need} ou mais no Mercado (menor preço em dollars dos outros, já sem a taxa) `
+      + `do que no Mark, do maior ganho para o menor. ${known}/${rows.length} itens com preço do Mercado.`);
     setAttr(worthBtn, 'aria-pressed', String(worthOn));
   }
 
@@ -675,8 +673,9 @@
 // Comprar: botão "Máx" em cada item, igual ao que o jogo já tem no Vender. A pedido do jogador (clique no Máx), põe
 // na quantidade o máximo que o dinheiro paga: dinheiro ÷ preço, dentro do limite do controle deslizante do jogo.
 // Só preenche o campo; a compra continua no botão Comprar do jogo.
-// Nas três abas (Comprar, Vender, Pokémon): ao lado do preço do Mark, o anúncio mais barato em dollars do mesmo item
-// no Mercado (no Pokémon, do parecido: mesma espécie e raridade, IV ±10), já sem a taxa nas vendas (abaixo).
+// Comprar e Pokémon: ao lado do preço do Mark, o anúncio mais barato em dollars do mesmo item no Mercado (no Pokémon,
+// do parecido: mesma espécie e raridade, IV ±10), já sem a taxa nas vendas (abaixo). Vender: se vale vender para o
+// Mark ou anunciar, pela mesma regra do Anunciar do Mercado (market-sales.js), com o que vale vender aqui primeiro.
 (() => {
   if (window.__pbMark) return;
   window.__pbMark = true;
@@ -803,13 +802,33 @@
     for (const row of win.querySelectorAll(POKE_ROW)) if (!row.closest(SELL_ROW)) out.push([row, 'poke']);
     return out;
   }
+  // Vender: Mark ou Mercado pela regra única de window.__pbSales (market-sales.js), a mesma do Anunciar e do Atualizar
+  // preços: o Mercado só vale com 30% ou mais sobre o Mark, já sem a taxa. A lista fica em ordem: primeiro o que vale
+  // vender aqui (do maior total para o menor), depois os sem preço do Mercado e por último os que rendem mais lá.
+  const RANK = { mark: 0, unknown: 1, none: 1, market: 2 };
+  const sentence = s => s.charAt(0).toUpperCase() + s.slice(1);
+  function sellVerdict(row, el, name) {
+    const stock = digits((row.querySelector('.mks-meta')?.textContent || '').split('×')[0]) || 1;
+    const v = window.__pbSales.verdict(name, stock);
+    const old = v.from === 'old' ? ` Menor preço guardado${v.oldAt ? ` ${ago(Date.now() - v.oldAt)}` : ''}; o ⟳ Atualizar preços do Mercado confere.` : '';
+    const mkt = v.p != null ? ` No Mercado, o menor preço em dollars dos outros é 💲${fmt(v.p)}/un (líquido 💲${fmt(Math.floor(v.net))}, menos ${fee}).` : '';
+    if (v.dest === 'mark') put(el, `✓ Vender aqui · 💲${fmt(v.total)}`, `Vender as ${fmt(stock)} un para o Mark rende 💲${fmt(v.total)}. ${sentence(v.why)}.${mkt}${old}`, 'here');
+    else if (v.dest === 'market') {
+      put(el, `▲ Melhor no Mercado · 💲${fmt(v.netTotal)}`, `Anunciar as ${fmt(stock)} un no Mercado rende 💲${fmt(v.netTotal)} líquido, `
+        + `${v.ratio != null ? `${v.ratio >= 0 ? '+' : ''}${Math.round(v.ratio * 100)}%` : ''} sobre o Mark (+💲${fmt(v.gain)}).${mkt}${old}`, 'market');
+    } else put(el, 'Mercado: sem preço', `${sentence(v.why)}.`, 'none');
+    return v;
+  }
   function mountCompare(win, on) {
     market = P.market();
     const rows = on ? rowsOf(win) : [];
+    const sold = [];  // [linha, veredito] do Vender, para a ordem
     let note = win.querySelector('.pb-mks-mkt-age');
     if (!rows.length) {
       note?.remove();
       win.querySelectorAll('.pb-mks-mkt').forEach(el => el.remove());
+      win.querySelectorAll('[data-pb-mark]').forEach(row => { row.removeAttribute('data-pb-mark'); row.style.removeProperty('order'); });
+      win.querySelector('.mks-list[data-pb-sort]')?.removeAttribute('data-pb-sort');
       return;
     }
     const strip = win.querySelector(STRIP);
@@ -823,6 +842,7 @@
       if (!info || !name) continue;
       let el = info.querySelector('.pb-mks-mkt');
       if (!el) { el = document.createElement('div'); el.className = 'pb-mks-mkt'; info.append(el); }
+      if (mode === 'sell' && window.__pbSales) { sold.push([row, sellVerdict(row, el, name)]); continue; }
       if (!market) { put(el, 'Mercado: abra o Mercado', 'Sem preços do Mercado ainda neste painel.', 'none'); continue; }
       let m;
       if (mode === 'poke') {
@@ -847,6 +867,15 @@
       const [cmp, text, title] = TEXT[mode](m, mark, stock);
       put(el, text, title, cmp);
     }
+    // Ordem do Vender (CSS order numa lista flex, game-windows.css). Lista virtualizada (com espaçador, como a aba
+    // Pokémon) fica como o jogo deixou: o espaçador do fim subiria junto.
+    sold.sort(([, a], [, b]) => RANK[a.dest] - RANK[b.dest] || (a.dest === 'market' ? b.gain - a.gain : b.markTotal - a.markTotal));
+    const list = sold[0]?.[0].parentElement, sortable = !!list && !list.querySelector(':scope > .mks-spacer');
+    sold.forEach(([row, v], k) => {
+      if (sortable && row.style.order !== String(k)) row.style.order = String(k);
+      if (row.dataset.pbMark !== v.dest) row.dataset.pbMark = v.dest;
+    });
+    if (list && list.hasAttribute('data-pb-sort') !== sortable) list.toggleAttribute('data-pb-sort', sortable);
   }
 
   setInterval(() => {

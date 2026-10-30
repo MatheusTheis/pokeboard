@@ -92,6 +92,7 @@
   for (const k of Object.keys(window.__pbCache || {})) if (isMarketKey(k)) learn(window.__pbCache[k]?.data);
   window.addEventListener('pb:data', e => {
     const k = e.detail?.path;
+    if (k === '/game/items.json') { memo.clear(); return; }  // tipos e preços do Mark: as contas mudam
     if (!isMarketKey(k)) return;
     dirtyMarket();
     learn(window.__pbCache?.[k]?.data);
@@ -110,12 +111,15 @@
   function marketIndex() {
     if (idx) return idx;
     const offers = new Map(), reqs = new Map(), seen = new Set();
+    const catAt = Object.fromEntries(CATS.map(c => [c, window.__pbCache?.[`${API}?category=${c}`]?.at || 0]));
     let at = 0;
     for (const [key, hit] of Object.entries(window.__pbCache || {})) {
       if (!isMarketKey(key)) continue;
       at = Math.max(at, hit?.at || 0);
       for (const x of hit?.data?.listings || []) {
         if (!x?.name || x.currency !== 'GOLD' || x.offerOnly) continue;
+        // Lista geral mais velha que a da categoria do anúncio: vale a da categoria (o da geral pode já ter vendido).
+        if (key === API && catAt[x.category] > (hit.at || 0)) continue;
         // O mesmo anúncio vem na lista geral e na da categoria: tira o repetido pelo id dele (preço e hora podem repetir).
         const uid = x.id != null ? `id:${x.id}` : idOf(x);
         if (seen.has(uid) || mineIds.has(idOf(x))) continue;
@@ -188,8 +192,45 @@
   }
   // O Mercado de um item pelo nome (grade do Anunciar).
   const marketByName = name => marketFor({ kind: 'item', name, refId: 0, price: null, currency: 'GOLD' });
+
+  // ---------- Mercado ou Mark: uma regra só ----------
+  // A mesma conta nos cards do Anunciar (etiqueta e Vale vender), no Atualizar preços e no Vender da Loja do Mark: o
+  // Mercado só vale se o menor preço em dollars dos outros, já sem a taxa, render pelo menos MIN_PROFIT a mais que o
+  // Mark; se ninguém vende o item em dollars ou se os seus anúncios dele ficaram parados, Mark.
+  const MIN_PROFIT = 0.3;
+  const norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const pct = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`;
+  // { dest: 'market' | 'mark' | 'none', total (vendendo todas no destino), p, net (por unidade), netTotal, markTotal,
+  //   gain (Mercado − Mark), ratio (líquido ÷ Mark − 1), why }
+  function decide({ qty, npc, cheapest, sells }) {
+    const P = window.__pbPrices;
+    const feeOf = total => (P ? P.fee(total) : Math.min(1e6, Math.floor(total * 0.03)));
+    npc = npc > 0 ? npc : 0;
+    const out = { qty, npc, p: cheapest ?? null, net: null, netTotal: null, markTotal: npc * qty, ratio: null, gain: 0 };
+    if (cheapest == null) return { ...out, dest: npc ? 'mark' : 'none', total: out.markTotal, why: 'ninguém vendendo em dollars' };
+    const gross = cheapest * qty, netTotal = gross - feeOf(gross);
+    Object.assign(out, { net: netTotal / qty, netTotal, ratio: npc ? netTotal / qty / npc - 1 : null });
+    if (npc && out.net < npc * (1 + MIN_PROFIT)) return { ...out, dest: 'mark', total: out.markTotal, why: `Mercado ${pct(out.ratio)} (precisa ${pct(MIN_PROFIT)})` };
+    if (npc && sells === 'parado') return { ...out, dest: 'mark', total: out.markTotal, why: 'seus anúncios dele ficaram parados' };
+    return { ...out, dest: 'market', total: netTotal, gain: netTotal - out.markTotal };
+  }
+  // Categoria do Mercado de um item pelo tipo dele no /game/items.json (o jogo já carregou; o hook guardou).
+  let typeOf = null, typeFrom = null;
+  function catOfName(name) {
+    const list = window.__pbCache?.['/game/items.json']?.data?.items;
+    if (Array.isArray(list) && list !== typeFrom) { typeFrom = list; typeOf = new Map(list.map(i => [norm(i.name), i.category])); }
+    const k = norm(name);
+    return typeOf?.has(k) ? MARKET_CAT[typeOf.get(k)] || 'Items' : null;
+  }
+  // "Ninguém vende" só vale com a categoria do item carregada nesta sessão (a lista geral não traz todos os anúncios).
+  const catLoaded = name => {
+    const c = catOfName(name);
+    return (c ? [c] : ['Items', 'Stones']).every(k => window.__pbCache?.[`${API}?category=${k}`]);
+  };
   // Para vender `qty` de um item: o que rende mais por unidade (já sem a taxa) entre o Mark, anunciar 1 abaixo do mais
   // barato dos outros (nunca abaixo do Mark, que o jogo não aceita) e o maior pedido de compra; e se o item vende.
+  // verdict: a regra acima. Sem anúncio nas respostas desta sessão, usa o último menor preço guardado (__pbPrices);
+  // sem nada e sem a categoria carregada, dest 'unknown'.
   function suggest(name, qty = 1, now = Date.now()) {
     if (now - memoAt > 60e3) { memo.clear(); memoAt = now; }  // idade e "parado" andam com o relógio
     const mkey = `${name}|${qty}`;
@@ -207,11 +248,24 @@
     const sells = st.count > 0 ? 'vende' : stale ? 'parado' : 'novo';
     const rank = o => o.unit * (o.action === 'list' && sells === 'parado' && mark > 0 ? 0 : 1);
     const best = opts.reduce((m, o) => (!m || rank(o) > rank(m) || (rank(o) === rank(m) && o.action === 'request') ? o : m), null);
-    const out = { name, qty, mark, mk, st, stale, sells, opts, best };
+    const itemCat = catOfName(name);  // também carrega o mapa de tipos (typeOf)
+    let cheapest = mk.cheapest, from = mk.cheapest != null ? 'now' : null, oldAt = 0;
+    const loaded = cheapest != null || catLoaded(name);
+    if (!loaded) {
+      const old = P?.market()?.items?.[norm(name)];
+      if (old?.p > 0) { cheapest = old.p; from = 'old'; oldAt = old.at || P.market().at || 0; }
+    }
+    const blank = why => ({ dest: 'unknown', qty, npc: mark > 0 ? mark : 0, markTotal: (mark > 0 ? mark : 0) * qty, total: 0, gain: 0, why });
+    // Só itens da mochila (os do items.json): Pokébolas e Diamonds ficam fora, como no Atualizar preços.
+    const verdict = !typeOf ? blank('lista de itens do jogo ainda não carregou')
+      : itemCat === null ? { ...blank('Pokébolas e Diamonds ficam fora da comparação'), dest: 'none' }
+        : !loaded && cheapest == null ? blank('sem preço do Mercado ainda: use ⟳ Atualizar preços')
+          : { ...decide({ qty, npc: mark, cheapest, sells }), from, oldAt };
+    const out = { name, qty, mark, mk, st, stale, sells, opts, best, verdict };
     memo.set(mkey, out);
     return out;
   }
-  window.__pbSales = { statusOf, itemStats, marketFor, suggest, isMine: l => mineIds.has(idOf(l)), STALE_MS };
+  window.__pbSales = { statusOf, itemStats, marketFor, suggest, verdict: (name, qty) => suggest(name, qty).verdict, MIN_PROFIT, isMine: l => mineIds.has(idOf(l)), STALE_MS };
 
   // ---------- etiquetas nos seus anúncios ----------
   const fiberOf = el => { const k = Object.keys(el).find(x => x.startsWith('__reactFiber$')); return k ? el[k] : null; };
@@ -254,7 +308,8 @@
   }
   const schedule = () => { if (!pending) pending = setTimeout(apply, 200); };
 
-  // ---------- Anunciar › itens: o melhor destino em cada card ----------
+  // ---------- Anunciar › itens: destino e quanto rende vendendo tudo, em cada card ----------
+  // Etiqueta no canto: no Mercado (a regra dos 30%), o total líquido de anunciar todas; senão "NPC" e o total do Mark.
   const SELL_TILES = '.mkt-sellform > .mkt-pick:not(.mkt-pick-pk) .mkt-tile';
   const compact = n => (n >= 1e9 ? `${+(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : String(Math.round(n)));
   const tileInfo = t => ({ name: t.querySelector('img')?.alt || '', qty: Number(String(t.querySelector('.mkt-tile-qty')?.textContent || '').replace(/\D/g, '')) || 1 });
@@ -262,21 +317,23 @@
     const now = Date.now();
     for (const t of win.querySelectorAll(SELL_TILES)) {
       const { name, qty } = tileInfo(t);
-      const s = name ? suggest(name, qty, now) : null, b = s?.best;
-      if (!b) { ['data-pb-sug', 'data-pb-sug-kind'].forEach(k => t.removeAttribute(k)); continue; }
-      const text = (b.action === 'mark' ? 'NPC' : b.action === 'request' ? `⇢${compact(b.price)}` : compact(b.price)) + (s.sells === 'parado' ? ' ⚠' : '');
+      const v = name ? suggest(name, qty, now).verdict : null;
+      if (!v || (v.dest !== 'market' && v.dest !== 'mark')) { ['data-pb-sug', 'data-pb-sug-kind'].forEach(k => t.removeAttribute(k)); continue; }
+      const text = v.dest === 'market' ? `💲${compact(v.total)}` : `NPC ${compact(v.total)}${/parados/.test(v.why) ? ' ⚠' : ''}`;
       if (t.getAttribute('data-pb-sug') !== text) t.setAttribute('data-pb-sug', text);
-      if (t.getAttribute('data-pb-sug-kind') !== b.action) t.setAttribute('data-pb-sug-kind', b.action);
+      if (t.getAttribute('data-pb-sug-kind') !== v.dest) t.setAttribute('data-pb-sug-kind', v.dest);
     }
   }
   function renderTile(t) {
-    const { name, qty } = tileInfo(t), s = suggest(name, qty), b = s.best;
+    const { name, qty } = tileInfo(t), s = suggest(name, qty), v = s.verdict;
     const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
     const total = o => fmt(o.unit * o.units);
-    const label = { mark: 'vender para o Mark', list: `anunciar a ${fmt(b?.price || 0)}`, request: `vender para o pedido de ${fmt(b?.price || 0)}` };
-    const verdict = !b ? '<p class="pbsc-verdict">Sem preço conhecido para este item ainda.</p>'
-      : `<p class="pbsc-verdict ${b.action === 'mark' && s.sells === 'parado' ? 'stale' : 'selling'}">Melhor: ${label[b.action]}${b.action === 'request' && b.units < qty ? ` (${fmt(b.units)} un)` : ''}</p>`;
+    const verdict = v.dest === 'market'
+      ? `<p class="pbsc-verdict selling">Vale anunciar: menor preço ${fmt(v.p)} rende ${v.ratio != null ? `${pct(v.ratio)} sobre o Mark` : 'e o Mark não compra'}.</p>`
+      : v.dest === 'mark' ? `<p class="pbsc-verdict${/parados/.test(v.why) ? ' stale' : ''}">Melhor vender para o Mark: ${esc(v.why)}.</p>`
+        : `<p class="pbsc-verdict">${v.dest === 'unknown' ? 'Sem preço do Mercado ainda: use ⟳ Atualizar preços.' : 'Ninguém vende em dollars e o Mark não compra.'}</p>`;
     let body = row('Você tem', `${fmt(qty)} un`);
+    if (v.dest === 'market' || v.dest === 'mark') body += row('Vendendo tudo', `💲${fmt(v.total)} <small>${v.dest === 'market' ? 'líquido' : 'no Mark'}</small>`);
     if (s.mark > 0) body += row('Mark (NPC)', `${fmt(s.mark)}/un <small>· ${fmt(s.mark * qty)}</small>`);
     const list = s.opts.find(o => o.action === 'list');
     if (s.mk.cheapest != null) {
@@ -291,7 +348,8 @@
     if (s.stale) body += row('Anúncios parados', `${s.stale} <small>(4 dias ou mais sem venda)</small>`);
     const note = s.sells === 'parado' ? '<p class="pbsc-note">Seus anúncios deste item não venderam: o Mark ganha a preferência.</p>'
       : s.sells === 'novo' ? '<p class="pbsc-note">Ainda sem venda sua deste item: o tempo para vender é estimativa.</p>' : '';
-    const age = s.mk.at ? `<p class="pbsc-note">Preços do Mercado de há ${span(Date.now() - s.mk.at)}.</p>` : '';
+    const age = v.from === 'old' ? `<p class="pbsc-note">Menor preço guardado${v.oldAt ? ` de há ${span(Date.now() - v.oldAt)}` : ''}: use ⟳ Atualizar preços para conferir.</p>`
+      : s.mk.at ? `<p class="pbsc-note">Preços do Mercado de há ${span(Date.now() - s.mk.at)}.</p>` : '';
     card.innerHTML = `<div class="pbsc-head"><b>${esc(name)}</b><span>para vender</span></div>${verdict}<dl>${body}</dl>${note}${age}`;
   }
 
@@ -466,9 +524,6 @@
   // dollars dos outros em cada item e compara com o que o Mark paga (npcPrice). O Mercado só ganha se render, já sem a
   // taxa, pelo menos MIN_PROFIT a mais que o Mark. Enquanto busca, uma camada por cima trava a tela (cliques e teclas)
   // e mostra o progresso; no fim, o resultado por item. Só consulta: não anuncia nem vende nada.
-  const MIN_PROFIT = 0.3;
-  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  const pct = v => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))}%`;
   const refreshBtn = document.createElement('button');
   refreshBtn.type = 'button';
   refreshBtn.id = 'pb-price-refresh';
@@ -571,19 +626,13 @@
   }
   function compare(items, fresh) {
     const best = cheapestIn(fresh), P = window.__pbPrices;
-    const feeOf = total => (P ? P.fee(total) : Math.min(1e6, Math.floor(total * 0.03)));
     const rows = items.map(x => {
       const cat = marketCat(x), name = x.label, qty = Math.max(1, Number(x.max) || 1);
       const npc = Number(x.npc ?? P?.npc(name)) || 0;
       const icon = typeof x.icon === 'string' && /^(\/|https?:|data:image\/)/.test(x.icon) ? x.icon : '';
-      const r = { name, qty, npc, icon, cat, markTotal: npc * qty, p: null, net: null, gain: 0, ratio: null };
-      if (!fresh[cat]) return { ...r, dest: npc > 0 ? 'mark' : 'none', why: `${cat} não respondeu` };
+      if (!fresh[cat]) return { name, qty, npc, icon, markTotal: npc * qty, p: null, gain: 0, dest: npc > 0 ? 'mark' : 'none', why: `${cat} não respondeu` };
       const l = best.get(`${cat}|n:${norm(name)}`) || best.get(`${cat}|r:${x.key.split(':')[1]}`);
-      if (!l) return { ...r, dest: npc > 0 ? 'mark' : 'none', why: 'ninguém vendendo em dollars' };
-      const total = l.price * qty, net = (total - feeOf(total)) / qty;
-      Object.assign(r, { p: l.price, net, netTotal: total - feeOf(total), ratio: npc > 0 ? net / npc - 1 : null });
-      if (npc > 0 && net < npc * (1 + MIN_PROFIT)) return { ...r, dest: 'mark', why: `Mercado ${pct(r.ratio)} (precisa ${pct(MIN_PROFIT)})` };
-      return { ...r, dest: 'market', gain: r.netTotal - r.markTotal };
+      return { name, icon, ...decide({ qty, npc, cheapest: l ? l.price : null, sells: suggest(name, qty).sells }) };
     });
     const order = { market: 0, mark: 1, none: 2 };
     return rows.sort((a, b) => order[a.dest] - order[b.dest] || b.gain - a.gain || b.markTotal - a.markTotal || a.name.localeCompare(b.name));

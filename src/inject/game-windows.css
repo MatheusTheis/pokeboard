@@ -263,8 +263,8 @@
 #pb-sell-kind .pb-pk-scan { flex: none; max-width: 40%; color: var(--pb-ink-muted); font: 500 13px/18px var(--pb-font-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #pb-sell-kind button.pb-pk-rescan { flex: none; font-size: 14px; }
 #pb-sell-kind:not([data-kind="pokemon"]) :is(.pb-pk-scan, .pb-pk-rescan) { display: none; }
-/* "Vale vender" (market-plus.js), ao lado das categorias: a busca encolhe para caber. Ligado, os itens que rendem
-   mais no Mercado que no Mark vêm primeiro com o ganho total no canto; os outros ficam apagados. */
+/* "Vale vender" (market-plus.js), ao lado das categorias: a busca encolhe para caber. Ligado, a grade mostra só os
+   itens que rendem 30% ou mais no Mercado do que no Mark (do maior ganho para o menor); os outros somem. */
 #pb-sell-worth {
   flex: none;
   padding: 5px 10px;
@@ -281,7 +281,16 @@
 #pb-sell-worth[aria-pressed="true"] { color: var(--pb-ink); background: var(--pb-surface-raised); box-shadow: var(--pb-frame-focus); }
 #pb-sell-worth:focus-visible { outline: 2px solid var(--pb-focus); outline-offset: 3px; }
 .game-root .mkt2-window .mkt-tile[data-pb-worth] { position: relative; }
-.game-root .mkt2-window .mkt-tile[data-pb-worth="no"] { opacity: .35; }
+.game-root .mkt2-window .mkt-tile[data-pb-worth="no"] { display: none !important; }
+.game-root .mkt2-window .mkt-pick[data-pb-worth-none]::before {
+  content: attr(data-pb-worth-none);
+  grid-column: 1 / -1;
+  flex: 1 0 100%;
+  padding: 16px 12px;
+  color: var(--pb-ink-muted);
+  font: 600 14px/18px var(--pb-font-body);
+  text-align: center;
+}
 /* Anunciar › Pokémon: valor de mercado do parecido (market-plus.js) no canto oposto ao nível. */
 .game-root .mkt2-window .mkt-ptile[data-pb-val]::after {
   content: attr(data-pb-val);
@@ -295,17 +304,6 @@
 }
 .game-root .mkt2-window .mkt-ptile[data-pb-val-kind="approx"]::after { opacity: .7; }   /* ~ mais barato da espécie */
 .game-root .mkt2-window .mkt-ptile[data-pb-val-kind="none"]::after { color: var(--pb-ink-muted); }
-.game-root .mkt2-window .mkt-tile[data-pb-gain]::after {
-  content: attr(data-pb-gain);
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  padding: 1px 3px;
-  background: var(--pb-success);
-  color: var(--pb-on-success);
-  font: 700 10px/12px var(--pb-font-body);
-  pointer-events: none;
-}
 
 .game-root .mkt-sellform[data-pb-kind] {
   display: grid !important;
@@ -1150,7 +1148,7 @@
 .game-root .mks-window .mks-qtymax:disabled { opacity: .45 !important; cursor: default !important; }
 .game-root .mks-window .mks-lock { filter: none !important; }
 /* Anúncio mais barato do Mercado em cada item (market-plus.js): verde quando o Mercado é o melhor negócio
-   (no Comprar, mais barato que o Mark; no Vender e no Pokémon, rende mais que o Mark mesmo sem a taxa). */
+   (no Comprar, mais barato que o Mark; no Pokémon, rende mais que o Mark mesmo sem a taxa). */
 .game-root .mks-window .pb-mks-mkt {
   margin-top: 2px;
   overflow: hidden;
@@ -1160,6 +1158,13 @@
   text-overflow: ellipsis;
 }
 .game-root .mks-window .pb-mks-mkt[data-cmp="good"] { color: var(--pb-success); }
+/* Vender (regra do market-sales.js): ✓ vale vender aqui em verde, ▲ melhor no Mercado em azul e a linha apagada.
+   A lista vira flex para a ordem (primeiro o que vale vender aqui); sem encolher as linhas dentro da rolagem. */
+.game-root .mks-window .pb-mks-mkt[data-cmp="here"] { color: var(--pb-success); }
+.game-root .mks-window .pb-mks-mkt[data-cmp="market"] { color: var(--pb-poke-blue); }
+.game-root .mks-window .mks-list[data-pb-sort] { display: flex !important; flex-direction: column; }
+.game-root .mks-window .mks-list[data-pb-sort] > * { flex-shrink: 0; }
+.game-root .mks-window .mks-row[data-pb-mark="market"]:not(.on) { opacity: .6; }
 .game-root .mks-window .pb-mks-mkt-age { margin-right: auto; color: var(--pb-ink-muted); font: 500 12px/16px var(--pb-font-body); }
 /* Aba Pokémon: barra de filtros (busca, IV, raridades). As raridades mantêm a cor do jogo; a desligada fica apagada. */
 .game-root .mks-window .mks-fbar {
@@ -2175,8 +2180,9 @@
 .game-root .team-window .pb-evo-bar { flex-basis: 100%; height: 6px; background: var(--pb-bar-track); box-shadow: 0 0 0 2px var(--pb-border); }
 .game-root .team-window .pb-evo-bar i { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--pb-bar-fill) 0 6px, transparent 6px 8px); }
 
-/* Anunciar › itens (market-sales.js): o melhor destino no canto do card — preço para anunciar, ⇢ pedido de compra
-   ou NPC (Mark); ⚠ quando seus anúncios do item ficaram parados. O cartão ao passar o mouse traz as contas. */
+/* Anunciar › itens (market-sales.js): no canto do card, quanto rende vender todas — em verde no Mercado (30% ou mais
+   sobre o Mark, já sem a taxa), "NPC" e o total no Mark; ⚠ quando seus anúncios do item ficaram parados. O cartão ao
+   passar o mouse traz as contas. */
 .game-root .mkt2-window .mkt-tile[data-pb-sug]::before {
   content: attr(data-pb-sug);
   position: absolute;
@@ -2191,7 +2197,7 @@
   white-space: nowrap;
   pointer-events: none;
 }
-.game-root .mkt2-window .mkt-tile[data-pb-sug-kind="request"]::before { background: var(--pb-pika-yellow); }
+.game-root .mkt2-window .mkt-tile[data-pb-sug-kind="market"]::before { background: var(--pb-success); color: var(--pb-on-success); }
 .game-root .mkt2-window .mkt-tile[data-pb-sug-kind="mark"]::before { background: var(--pb-surface-raised); color: var(--pb-ink); }
 #pb-sale-card .pbsc-note { margin: 8px 10px 0; color: var(--pb-ink-muted); font-size: 12px; }
 
@@ -2208,10 +2214,6 @@
 @media (prefers-reduced-motion: reduce) {
   .game-root .game-dock .dock-btn[data-pb-pulse] { animation: none !important; box-shadow: 0 0 0 3px var(--pb-pika-yellow) !important; }
 }
-
-/* Anunciar: uma etiqueta por card. Com o precificador, o ganho do Vale vender (canto esquerdo) sai do card; as contas
-   ficam no cartão ao passar o mouse. */
-.game-root .mkt2-window .mkt-tile[data-pb-sug][data-pb-gain]::after { display: none !important; }
 
 /* ---------- Mercado: Atualizar preços (market-sales.js) ----------
    Botão no fim da barra de abas; enquanto busca, uma camada por cima de tudo trava a tela com a barra de progresso,
