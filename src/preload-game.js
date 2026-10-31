@@ -199,6 +199,10 @@ window.addEventListener('pb:diag', () => ipcRenderer.send('pb:diag', String(docu
 window.addEventListener('pb:bag', () => {
   try { ipcRenderer.send('pb:bag-full', JSON.parse(document.documentElement.dataset.pbBag || '{}')); } catch {}
 });
+// Invasão Rocket (invasion-alert.js): daqui vai para o main piscar a barra de tarefas e mostrar a notificação.
+window.addEventListener('pb:invasion', () => {
+  try { ipcRenderer.send('pb:invasion', JSON.parse(document.documentElement.dataset.pbInvasion || '{}')); } catch {}
+});
 
 // Histórico de preços do Mercado (market-history.js, no mundo da página): as observações vão para o main, que guarda
 // um histórico só para todas as contas; ele volta inteiro para a página, numa chamada à função dela.
@@ -217,7 +221,7 @@ for (const name of ['hook', 'fps']) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView', 'bagAlert', 'lastHunt', 'marketSales', 'teamEvo', 'dailyPulse', 'marketLog']) {
+  for (const name of ['card', 'layout', 'market', 'dock', 'hud', 'clog', 'map', 'pokedex', 'route', 'prestige', 'chat', 'activity', 'autoBall', 'breeding', 'marketHist', 'dailyKill', 'battleView', 'bagAlert', 'lastHunt', 'marketSales', 'teamEvo', 'dailyPulse', 'marketLog', 'invasionAlert']) {
     const src = ipcRenderer.sendSync('pb:inject-source', name);
     if (src) webFrame.executeJavaScript(src).catch(e => console.error(`[PokeBoard] ${name}`, e));
   }

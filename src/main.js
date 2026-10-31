@@ -75,6 +75,7 @@ const INJECT = {
   teamEvo: path.join(__dirname, 'inject', 'team-evo.js'),
   dailyPulse: path.join(__dirname, 'inject', 'daily-pulse.js'),
   marketLog: path.join(__dirname, 'inject', 'market-log.js'),
+  invasionAlert: path.join(__dirname, 'inject', 'invasion-alert.js'),
 };
 const STATE_PATH = () => path.join(app.getPath('userData'), 'board.json');
 
@@ -750,6 +751,46 @@ ipcMain.on('pb:bag-full', (e, info) => {
   bagNotices.add(n);
   n.on('click', () => { showWindow(); views[indexOfSlot(slot)]?.webContents.focus(); });
   n.on('close', () => bagNotices.delete(n));
+  n.show();
+});
+
+// ---------- Invasão Rocket (invasion-alert.js) ----------
+// Quando a Equipe Rocket invade Cerulean: a barra de tarefas pisca até você voltar à janela e sai uma notificação do
+// Windows; clicar nela abre o PokeBoard na conta (no modo Foco, amplia ela). Uma vez por invasão, por conta.
+const invasionSeen = new Map();    // conta → início da última invasão avisada
+const invasionNotices = new Set(); // notificações abertas (sem referência, o clique pode se perder)
+const stopInvasionFlash = () => { if (win && !win.isDestroyed()) win.flashFrame(false); };
+ipcMain.on('pb:invasion', (e, info) => {
+  const slot = viewSlot(e);
+  if (!Number.isInteger(slot) || slot < 0) return;
+  const now = Date.now(), start = Number(info?.start), until = Number(info?.entryUntil), energy = Number(info?.energy);
+  if (!Number.isFinite(start) || Math.abs(start - now) > 2 * 36e5) return;
+  const prev = invasionSeen.get(slot);
+  if (prev !== undefined && Math.abs(start - prev) < 30 * 60e3) return;  // a mesma invasão (dura 30 min)
+  invasionSeen.set(slot, start);
+  const name = state.accounts[slot]?.name || `Conta ${slot + 1}`;
+  if (win && !win.isDestroyed() && !win.isFocused()) {
+    win.flashFrame(true);
+    if (!win.listeners('focus').includes(stopInvasionFlash)) win.once('focus', stopInvasionFlash);  // uma vez só, mesmo com várias invasões
+  }
+  if (!Notification.isSupported()) return;
+  const hm = t => new Date(t).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const entry = Number.isFinite(until) && until > now ? ` A entrada fecha às ${hm(until)}.` : '';
+  const red = info?.energy != null && Number.isFinite(energy) ? ` Energia Vermelha: ${energy}/10.` : '';
+  const n = new Notification({
+    title: `Invasão Rocket · ${name}`,
+    body: `A Equipe Rocket está invadindo Cerulean! Entre pelo botão INVASÃO, em Cerulean.${entry}${red}`,
+    icon: ICON_PATH,
+  });
+  invasionNotices.add(n);
+  n.on('click', () => {
+    showWindow();
+    const i = indexOfSlot(slot);
+    if (!views[i]) return;
+    if (state.layout === 'focus' && state.focus !== i) { state.focus = i; saveState(); layout(); }
+    views[i].webContents.focus();
+  });
+  n.on('close', () => invasionNotices.delete(n));
   n.show();
 });
 ipcMain.on('pb:reload', (_, i) => views[i]?.webContents.reload());
