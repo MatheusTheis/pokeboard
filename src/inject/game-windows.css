@@ -218,6 +218,7 @@
 .game-root .mkt2-window :is(.mkt2-card, .mkt2-sp-card, .mkt2-row, .mkt2-trow):hover { background: var(--pb-surface-raised) !important; }
 .game-root .mkt2-window .mkt2-card.sel { box-shadow: var(--pb-frame-focus), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
 .game-root .mkt2-window .mkt2-card.own { box-shadow: 0 -2px 0 0 var(--pb-poke-blue), 0 2px 0 0 var(--pb-poke-blue), -2px 0 0 0 var(--pb-poke-blue), 2px 0 0 0 var(--pb-poke-blue), 4px 4px 0 0 var(--pb-shadow-ink) !important; }
+.game-root .mkt2-window [data-pb-buy-link] { cursor: pointer; }
 .game-root .mkt2-window .mkt2-card-art { border: 0 !important; border-radius: 0 !important; background: var(--pb-screen) !important; box-shadow: var(--pb-frame-ink), var(--pb-shadow-bevel) !important; }
 .game-root .mkt2-window .mkt2-card-art :is(img, canvas) { transform: none !important; image-rendering: pixelated; }
 .game-root .mkt2-window :is(.mkt2-card-name, .mkt2-row-name, .mkt2-sp-name) { color: var(--pb-ink) !important; text-shadow: none !important; font-family: var(--pb-font-body) !important; }

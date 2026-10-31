@@ -293,8 +293,10 @@
       if (!mine) {
         if (tag) tag.remove();
         if (el.hasAttribute('data-pb-sale')) el.removeAttribute('data-pb-sale');
+        if (el.hasAttribute('data-pb-buy-link')) el.removeAttribute('data-pb-buy-link');
         continue;
       }
+      if (!el.hasAttribute('data-pb-buy-link')) el.setAttribute('data-pb-buy-link', '');
       const st = statusOf(l, now), text = tagText(st);
       if (!tag) {
         tag = document.createElement('div');
@@ -407,6 +409,48 @@
       if (hits.length > 1) return null;  // ambíguo: não mexe
     }
     return null;
+  }
+  // Meus Anúncios: o card abre a busca deste produto em Comprar. Os botões do anúncio continuam com o jogo.
+  const waitFor = async (find, ms = 4000) => {
+    const end = Date.now() + ms;
+    do {
+      const hit = win?.isConnected && find();
+      if (hit) return hit;
+      await sleep(50);
+    } while (win?.isConnected && Date.now() < end);
+    return null;
+  };
+  const setField = (el, value, event) => {
+    if (!el || el.value === value) return;
+    Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value').set.call(el, value);
+    el.dispatchEvent(new Event(event, { bubbles: true }));
+  };
+  let buyNav = 0;
+  async function openOwnInBuy(l) {
+    const token = ++buyNav;
+    const q = categoryQueue();
+    const tab = [...win.querySelectorAll('.mkt2-tab')].find(b => /comprar/i.test(b.querySelector('.mkt2-tab-label')?.textContent || ''));
+    const cat = CAT_STATES.has(l.category) ? l.category : l.kind === 'pokemon' ? 'Pokemon' : 'Items';
+    if (!q || !tab || !l.name) return;
+    tab.click();
+    if (q.lastRenderedState !== cat) q.dispatch(cat); // a tela do jogo faz a busca completa da categoria
+    const toolbar = await waitFor(() => token === buyNav && win.querySelector('.mkt2-tab.on .mkt2-tab-label')?.textContent?.trim() === tab.textContent?.trim()
+      && win.querySelector('.mkt2-main .mkt2-toolbar-row .mkt2-search input'));
+    if (!toolbar || token !== buyNav) return;
+    // O jogo tem seu filtro de moeda; o filtro do PokeBoard também pode estar em Diamonds.
+    const dollars = await waitFor(() => win.querySelector('#pb-mkt-cur button[data-cur="DOLLARS"]'), 1500);
+    if (token !== buyNav || !win?.isConnected) return;
+    dollars?.click();
+    win.querySelectorAll('.mkt2-toolbar-row .mkt2-curseg-btn')[1]?.click(); // Todas, Dollars, Diamonds
+    const sort = win.querySelector('.mkt2-toolbar-row select.mkt2-select:not(.mkt2-select--sm)');
+    setField(sort, 'price-asc', 'change');
+    if (cat === 'Pokemon') win.querySelector('.mkt2-sp-back')?.click();
+    setField(win.querySelector('.mkt2-toolbar-row .mkt2-search input'), l.name, 'input');
+    if (cat === 'Pokemon') {
+      const species = await waitFor(() => token === buyNav && [...win.querySelectorAll('.mkt2-sp-card:not(.mkt2-sp-all)')]
+        .find(b => b.querySelector('.mkt2-sp-name')?.textContent?.trim() === l.name));
+      if (species && token === buyNav) species.click(); // abre só os anúncios desta espécie
+    }
   }
   // Itens que você pode anunciar: a lista que a tela do Mercado monta para o Anunciar (useMemo, existe em qualquer
   // aba): { key: "item:12" | "ball:3" | "diamonds:0", label, max (quantidade), cat (tipo do items.json), npc }.
@@ -714,6 +758,18 @@
         });
         win.addEventListener('pointerleave', hide);
         win.addEventListener('scroll', hide, true);
+        win.addEventListener('click', e => {
+          if (!getComputedStyle(document.documentElement).getPropertyValue('--pb-screen').trim()) return;
+          if (!/meus anúncios/i.test(win.querySelector('.mkt2-tab.on .mkt2-tab-label')?.textContent || '')) return;
+          const card = e.target.closest?.(ITEMS);
+          if (!card || !win.contains(card) || e.target.closest('button, a, input, select, label')) return;
+          const l = listingOf(card);
+          if (!l || !mineIds.has(idOf(l))) return;
+          e.preventDefault();
+          e.stopPropagation();
+          hide();
+          openOwnInBuy(l);
+        }, true);
         schedule();
         openedAt = Date.now();
       }
