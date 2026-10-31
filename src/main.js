@@ -72,6 +72,7 @@ const INJECT = {
   bagAlert: path.join(__dirname, 'inject', 'bag-alert.js'),
   lastHunt: path.join(__dirname, 'inject', 'last-hunt.js'),
   marketSales: path.join(__dirname, 'inject', 'market-sales.js'),
+  qualityIv: path.join(__dirname, 'inject', 'quality-iv.js'),
   teamEvo: path.join(__dirname, 'inject', 'team-evo.js'),
   dailyPulse: path.join(__dirname, 'inject', 'daily-pulse.js'),
   marketLog: path.join(__dirname, 'inject', 'market-log.js'),

@@ -212,7 +212,7 @@
   // Ordem dos cards de Pokémon (o jogo mostra na ordem em que recebe): seletor nosso ao lado do filtro de tipo.
   // Só CSS order na grade; a escolha fica no localStorage do painel.
   const PK_SORT_KEY = 'pb:sell-pk-sort';
-  const PK_SORTS = [['', 'Ordem: padrão'], ['iv-desc', 'IV ↓'], ['iv-asc', 'IV ↑'], ['rar-desc', 'Raridade ↓'], ['rar-asc', 'Raridade ↑'],
+  const PK_SORTS = [['', 'Ordem: padrão'], ['iv-desc', 'IV ↓'], ['iv-asc', 'IV ↑'], ['rar-desc', 'Qualidade ↓'], ['rar-asc', 'Qualidade ↑'],
     ['value-desc', 'Valor ↓']];
   let pkSort = (() => { try { const v = localStorage.getItem(PK_SORT_KEY) || ''; return PK_SORTS.some(([k]) => k === v) ? v : ''; } catch { return ''; } })();
   const pkSortSel = document.createElement('select');
@@ -244,18 +244,19 @@
       }
       setAttr(t, 'data-pb-val', val);
       setAttr(t, 'data-pb-val-kind', kind);
-      // Raridade: posição na tabela do jogo, de Fraca (0) a Divina; -1 sem dado.
-      const rar = p ? P.GRADE_NAMES.length - 1 - P.GRADE_NAMES.indexOf(P.grade(p.quality ?? 1)) : -1;
-      rows.push({ t, iv: p?.ivTotal ?? -1, rar, price, i: rows.length });
+      rows.push({ t, iv: p?.ivTotal ?? -1, quality: p?.quality ?? -1, price, i: rows.length });
     }
-    // Ordem: sem dado (IV, raridade ou valor) vai para o fim; empate fica na ordem do jogo. Raridade desempata pelo
-    // IV, no mesmo sentido (↓: Divina de IV alto primeiro; ↑: Fraca de IV baixo primeiro).
+    // Qualidade usa o multiplicador exato; no empate, maior IV primeiro em ambos os sentidos.
+    // Sem dado (IV, qualidade ou valor) vai para o fim; empate completo fica na ordem do jogo.
     const up = v => (v < 0 ? Infinity : v);
+    const gameSort = [...(fbar?.querySelectorAll('select') || [])]
+      .find(s => [...s.options].some(o => o.value === 'quality-desc'))?.value;
     const by = {
       'iv-desc': r => [-r.iv], 'iv-asc': r => [up(r.iv)],
-      'rar-desc': r => [-r.rar, -r.iv], 'rar-asc': r => [up(r.rar), up(r.iv)],
+      'rar-desc': r => [-r.quality, -r.iv], 'rar-asc': r => [up(r.quality), -r.iv],
+      'quality-desc': r => [-r.quality, -r.iv],
       'value-desc': r => [r.price < 0 ? Infinity : -r.price],
-    }[pkSort];
+    }[pkSort || (gameSort === 'quality-desc' ? gameSort : '')];
     const cmp = (a, b) => { for (let k = 0; k < a.length; k++) { const d = a[k] - b[k]; if (d) return d; } return 0; };  // NaN (∞ − ∞) = empate
     for (const r of rows) r.key = by?.(r);
     const sorted = by ? [...rows].sort((a, b) => cmp(a.key, b.key) || a.i - b.i) : [];
