@@ -7,6 +7,10 @@
 //    Breeding Box; busca, ordem, regras do par e cotação continuam sendo do jogo. Clicar num que está fora manda ele
 //    para a Breeding Box com a mesma mensagem do Depósito (breedbox-move) e, movido, já o coloca no par pelo onPick da
 //    própria caixa. Pedido do Matheus; está nas exceções das regras do README. Não cria o ovo.
+// 3. Estado ao fechar: o jogo esquece tudo quando a janela fecha (par escolhido, caminho Feromônio/Grátis, pedras em
+//    dobro, busca e a rolagem da caixa). Guardamos por conta e, ao reabrir, devolvemos pelos useState do próprio Centro;
+//    a cotação e as regras do par continuam do jogo. Pai que saiu da Breeding Box (usado num ovo, movido, no time) fica
+//    de fora. Também só estado da tela.
 (() => {
   if (window.__pbBreeding) return;
   window.__pbBreeding = true;
@@ -18,6 +22,7 @@
   const ROOT = '.game-root';     // a conexão do jogo (contexto do React) fica acima dela
   const KEY = 'pb:breed-sort';
   const TAB_KEY = 'pb:breed-tab';
+  const STATE_KEY = 'pb:breed-state';
   const CHECK_MS = 700;          // a janela abre e fecha a qualquer hora
   const MOVE_MS = 4000;          // sem resposta do jogo nesse tempo, desiste (o Depósito do jogo usa o mesmo prazo)
   const MSG_MS = 3500;
@@ -42,7 +47,7 @@
   // Quem o Depósito aceita na Breeding Box: fora do time, sem o inicial, sem Ditto e sem anúncio no Mercado.
   const movable = e => !e.team && !e.starter && !e.listed && !e.isDitto && e.speciesId !== 132 && !String(e.id).startsWith('team-');
 
-  let ws = null, offs = [], queue = null, obs = null, tabsEl = null, msgTimer = 0;
+  let ws = null, offs = [], queue = null, hooks = null, obs = null, tabsEl = null, msgTimer = 0;
   let byId = new Map(), all = [], box = [], got = false;
   let pending = null;  // { id, pick, at }
   const showAll = () => tab === 'all' && got && skinOn();
@@ -56,19 +61,25 @@
     }
     return null;
   }
-  // A fila do useState da caixa: no componente do Centro (o que guarda a ordem escolhida no seletor), o estado que é
-  // uma lista de Pokémon. A fila é a mesma entre renders; o valor atual fica em lastRenderedState.
-  function findQueue(sel) {
+  // As filas dos useState do Centro (o componente que guarda a ordem escolhida no seletor), achadas pela forma e não
+  // pela posição: a caixa é o estado que é uma lista de Pokémon; logo depois vêm os dois pais (Pokémon ou null) e os
+  // dois booleanos (caminho Grátis, pedras em dobro); a busca é o texto logo antes da ordem. A fila é a mesma entre
+  // renders; o valor atual fica em lastRenderedState. Peça que não bater com a forma fica null (não é salva).
+  const isPoke = v => !!v && typeof v === 'object' && 'speciesId' in v;
+  function findHooks(sel) {
     for (let f = fiberOf(sel), d = 0; f && d < 40; f = f.return, d++) {
       if (typeof f.type !== 'function') continue;
-      let list = null, sort = false;
-      for (let h = f.memoizedState; h; h = h.next) {
-        const v = h.memoizedState;
-        if (!h.queue?.dispatch) continue;
-        if (v === sel.value) sort = true;
-        else if (!list && Array.isArray(v) && v.every(p => p && typeof p === 'object' && 'speciesId' in p)) list = h.queue;
-      }
-      if (list && sort) return list;
+      const st = [];
+      for (let h = f.memoizedState; h; h = h.next) if (h.queue?.dispatch) st.push(h.queue);
+      const li = st.findIndex(q => Array.isArray(q.lastRenderedState) && q.lastRenderedState.every(isPoke));
+      const si = st.findLastIndex(q => q.lastRenderedState === sel.value);
+      if (li < 0 || si < 0) continue;
+      const at = (i, ok) => (st[i] && ok(st[i].lastRenderedState) ? st[i] : null);
+      const slot = v => v === null || isPoke(v), bool = v => typeof v === 'boolean';
+      return {
+        list: st[li], p1: at(li + 1, slot), p2: at(li + 2, slot), free: at(li + 3, bool), dbl: at(li + 4, bool),
+        search: si - 1 > li + 4 ? at(si - 1, v => typeof v === 'string') : null,
+      };
     }
     return null;
   }
@@ -92,7 +103,7 @@
     all = list.filter(movable);
     box = list.filter(inBox);
     // Depois dos outros ouvintes (o do Centro troca a lista pela da Breeding Box), no mesmo render.
-    queueMicrotask(() => { apply(); paint(); });
+    queueMicrotask(() => { apply(); paint(); restoreState(); });
   }
   function setTab(t) {
     if (t === tab) return;
@@ -181,9 +192,70 @@
     paint();
   }
 
+  // ---------- estado ao fechar ----------
+  // Salvo a cada passada e no fechamento (as filas guardam o último valor mesmo com a janela desmontada). Até a
+  // devolução terminar nada é salvo, para o Centro recém-aberto (vazio) não apagar o que estava guardado.
+  let saved = null, restored = true, savedJson = '', lastTop = 0, scrollGoal = -1;
+  const gridEl = () => sel?.closest('.brd-window')?.querySelector(GRID) ?? null;
+  const val = q => q?.lastRenderedState;
+  function loadState() {
+    try {
+      savedJson = localStorage.getItem(STATE_KEY) || '';
+      const s = JSON.parse(savedJson || 'null');
+      return s && typeof s === 'object' ? s : null;
+    } catch { return null; }
+  }
+  function saveState() {
+    if (!hooks || !restored) return;
+    const j = JSON.stringify({
+      p1: val(hooks.p1)?.id ?? null, p2: val(hooks.p2)?.id ?? null, free: !!val(hooks.free), dbl: !!val(hooks.dbl),
+      search: val(hooks.search) ?? '', top: Math.round(scrollGoal >= 0 ? scrollGoal : lastTop),
+    });
+    if (j === savedJson) return;
+    savedJson = j;
+    try { localStorage.setItem(STATE_KEY, j); } catch {}
+  }
+  // Depois da primeira lista do jogo: só volta o pai que ainda está na Breeding Box, e só no que você ainda não mexeu.
+  function restoreState() {
+    if (restored || !got || !hooks) return;
+    restored = true;
+    const s = saved;
+    const ok = id => { const p = id != null && byId.get(String(id)); return p && inBox(p) && movable(p) ? p : null; };
+    if (hooks.p1 && hooks.p2 && val(hooks.p1) == null && val(hooks.p2) == null) {
+      const a = ok(s.p1), b = ok(s.p2);
+      if (a) hooks.p1.dispatch(a);
+      if (b && b !== a) hooks.p2.dispatch(b);
+    }
+    if (s.free === true && hooks.free) hooks.free.dispatch(true);
+    if (s.dbl === true && hooks.dbl) hooks.dbl.dispatch(true);
+    if (typeof s.search === 'string' && s.search && hooks.search && !val(hooks.search)) hooks.search.dispatch(s.search);
+    if (s.top > 0) scrollBack(+s.top, 30);
+  }
+  // A caixa cresce aos poucos (ordem e busca devolvidas, grade virtual medindo): tenta até chegar ou você rolar.
+  function scrollBack(top, tries) {
+    scrollGoal = top;
+    const step = () => {
+      if (scrollGoal !== top) return;
+      const g = gridEl();
+      if (g) g.scrollTop = top;
+      if (!g || Math.abs(g.scrollTop - top) <= 1 || --tries <= 0) {
+        scrollGoal = -1;
+        if (g) lastTop = g.scrollTop;
+        return;
+      }
+      setTimeout(step, 100);
+    };
+    requestAnimationFrame(step);
+  }
+  addEventListener('pagehide', saveState);
+
   function open(s) {
     restoreSort(s);
-    queue = findQueue(s);
+    hooks = findHooks(s);
+    queue = hooks?.list ?? null;
+    saved = hooks && loadState();
+    restored = !saved;
+    lastTop = 0; scrollGoal = -1;
     ws = findWs();
     if (ws) {
       offs = [ws.subscribe('pokes', onPokes), ws.subscribe('breedbox-moved', onMoved), ws.subscribe('error', onError)];
@@ -193,12 +265,17 @@
     let raf = 0;
     obs = grid && new MutationObserver(() => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); });
     obs?.observe(grid, { childList: true });
+    if (grid) {
+      grid.addEventListener('scroll', () => { if (scrollGoal < 0) lastTop = grid.scrollTop; }, { passive: true });
+      for (const t of ['wheel', 'pointerdown', 'keydown']) grid.addEventListener(t, () => { scrollGoal = -1; }, { passive: true });
+    }
   }
   function close() {
+    saveState();
     for (const off of offs) try { off(); } catch {}
     offs = [];
     obs?.disconnect();
-    obs = null; ws = null; queue = null; tabsEl = null; pending = null; got = false;
+    obs = null; ws = null; queue = null; hooks = null; tabsEl = null; pending = null; got = false;
   }
 
   let sel = null, wasAll = false;
@@ -218,5 +295,6 @@
     if (wasAll && !nowAll && queue && got) queue.dispatch(box);  // saiu para o "Original": a caixa volta a ser a do jogo
     wasAll = nowAll;
     apply();
+    if (restored) saveState(); else restoreState();
   }, CHECK_MS);
 })();
