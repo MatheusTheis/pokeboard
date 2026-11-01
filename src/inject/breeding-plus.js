@@ -11,6 +11,8 @@
 //    dobro, busca e a rolagem da caixa). Guardamos por conta e, ao reabrir, devolvemos pelos useState do próprio Centro;
 //    a cotação e as regras do par continuam do jogo. Pai que saiu da Breeding Box (usado num ovo, movido, no time) fica
 //    de fora. Também só estado da tela.
+// 4. Escolhido junto da caixa: com um pai escolhido, a caixa fica lá embaixo e o par sai da tela ao rolar. Uma faixa
+//    presa no topo da caixa mostra quem está escolhido e a qualidade que o par precisa ter.
 (() => {
   if (window.__pbBreeding) return;
   window.__pbBreeding = true;
@@ -179,6 +181,68 @@
       btn.toggleAttribute('data-pb-moving', !!c && String(pending?.id) === String(c.id));
     }
   }
+
+  // ---------- escolhido junto da caixa ----------
+  // Par normal: o jogo aceita diferença de qualidade até 0.15, arredondada em 3 casas (reasonQdiff). Com shiny não há
+  // diferença máxima, e sim um mínimo que o jogo calcula por tier; esse vem do texto que ele põe nos cards apagados.
+  const QDIFF = 0.15;
+  let pickEl = null, pickSig = '';
+  const fmtQ = q => (q ?? 0).toFixed(3);
+  const qOk = (a, b) => a == null || b == null || Math.round(1e3 * Math.abs(a - b)) / 1e3 <= QDIFF;
+  function shinyMin() {
+    for (const b of document.querySelectorAll(`.brd-window ${POKE}.dim`)) {
+      const m = /≥\s*(\d+(?:[.,]\d+)?)/.exec(b.title || '');
+      if (m) return parseFloat(m[1].replace(',', '.'));
+    }
+    return null;
+  }
+  const span = (cls, text) => { const s = document.createElement('span'); s.className = cls; s.textContent = text; return s; };
+  function who(p, slot) {
+    const el = span('pb-pk', '');
+    const color = document.querySelectorAll('.brd-window .brd-parent')[slot]?.querySelector('.brd-chip.q')?.style.color;
+    const q = span('pb-pk-q', `Q ${fmtQ(p.quality)}`);
+    if (color) q.style.color = color;
+    el.append(span('pb-pk-tag', slot ? '♀' : '♂'), span('pb-pk-name', `${p.shiny ? '✨ ' : ''}${p.name}`),
+      span('pb-pk-meta', `Lv. ${p.level} · IV ${p.ivTotal ?? '?'}`), q);
+    return el;
+  }
+  function paintPick() {
+    const bar = sel?.closest(BAR);
+    const a = val(hooks?.p1) ?? null, b = val(hooks?.p2) ?? null, ee = a ?? b;
+    if (!ee || !bar || !skinOn()) { pickEl?.remove(); pickEl = null; pickSig = ''; return; }
+    const list = val(hooks.list) ?? [];
+    const min = ee.shiny && !(a && b) ? shinyMin() : null;
+    const sig = JSON.stringify([a?.id, b?.id, a?.level, b?.level, list.length, min, tab]);
+    if (pickEl?.isConnected && pickEl.previousElementSibling === bar && sig === pickSig) return;
+    pickSig = sig;
+    if (!pickEl) { pickEl = document.createElement('div'); pickEl.id = 'pb-brd-pick'; pickEl.setAttribute('role', 'status'); }
+    if (pickEl.previousElementSibling !== bar) bar.after(pickEl);
+    pickEl.replaceChildren();
+    if (a) pickEl.append(who(a, 0));
+    if (b) pickEl.append(who(b, 1));
+    if (a && b) {
+      pickEl.append(span('pb-pk-range', `diferença ${fmtQ(Math.abs((a.quality ?? 0) - (b.quality ?? 0)))}`));
+      return;
+    }
+    // Quem da lista na tela (Breeding Box ou Todos) serve de par; shiny do outro lado tem regra própria e fica de fora.
+    const mates = list.filter(p => p.id !== ee.id && p.speciesId === ee.speciesId && !p.starter && !p.isDitto && !p.shiny);
+    let range, n;
+    if (!ee.shiny) {
+      range = `par: Q ${fmtQ(Math.max(0, (ee.quality ?? 0) - QDIFF))} a ${fmtQ((ee.quality ?? 0) + QDIFF)}`;
+      n = mates.filter(p => qOk(p.quality, ee.quality)).length;
+    } else if (min != null) {
+      range = `par: Q ≥ ${min.toFixed(2)}`;
+      n = mates.filter(p => (p.quality ?? 0) >= min).length;
+    } else {
+      range = 'par: sem diferença máxima (shiny)';
+      n = mates.length;
+    }
+    pickEl.append(span('pb-pk-range', range), span('pb-pk-count', `${n} na ${showAll() ? 'lista' : 'caixa'}`));
+  }
+  // Escolher ou tirar um pai é clique: o React já desenhou quando o clique chega aqui.
+  document.addEventListener('click', e => {
+    if (sel && e.target.closest?.('.brd-window')) requestAnimationFrame(paintPick);
+  });
   function mountTabs(bar) {
     if (tabsEl?.isConnected && tabsEl.parentNode === bar) return;
     tabsEl = document.createElement('div');
@@ -266,7 +330,8 @@
     obs = grid && new MutationObserver(() => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(); }); });
     obs?.observe(grid, { childList: true });
     if (grid) {
-      grid.addEventListener('scroll', () => { if (scrollGoal < 0) lastTop = grid.scrollTop; }, { passive: true });
+      // Fechada a janela, o Chrome ainda manda um scroll com 0 da caixa já desmontada: esse não conta.
+      grid.addEventListener('scroll', () => { if (scrollGoal < 0 && grid.isConnected) lastTop = grid.scrollTop; }, { passive: true });
       for (const t of ['wheel', 'pointerdown', 'keydown']) grid.addEventListener(t, () => { scrollGoal = -1; }, { passive: true });
     }
   }
@@ -275,7 +340,7 @@
     for (const off of offs) try { off(); } catch {}
     offs = [];
     obs?.disconnect();
-    obs = null; ws = null; queue = null; hooks = null; tabsEl = null; pending = null; got = false;
+    obs = null; ws = null; queue = null; hooks = null; tabsEl = null; pending = null; got = false; pickEl = null; pickSig = '';
   }
 
   let sel = null, wasAll = false;
@@ -296,5 +361,6 @@
     wasAll = nowAll;
     apply();
     if (restored) saveState(); else restoreState();
+    paintPick();
   }, CHECK_MS);
 })();

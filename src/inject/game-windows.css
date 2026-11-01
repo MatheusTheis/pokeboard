@@ -752,6 +752,31 @@
 .game-root .brd-window .brd-box-poke[data-pb-out]:not(.dim):not(:hover) .brd-box-sprite { opacity: .7; }
 .game-root .brd-window .brd-box-poke[data-pb-moving] { animation: pb-brd-moving .5s steps(2) infinite; }
 @keyframes pb-brd-moving { 50% { opacity: .45; } }
+/* Faixa do escolhido (breeding-plus.js): presa no topo da janela enquanto a caixa está na tela, com a qualidade que o
+   par precisa ter. Diz o mesmo que o aviso do jogo, com os números, e fica no lugar dele. */
+.game-root .brd-window .brd-col-box:has(#pb-brd-pick) .brd-box-guide { display: none !important; }
+#pb-brd-pick {
+  position: sticky;
+  top: -12px;  /* rente à borda: o .brd-body tem 12px de padding em cima */
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--pb-surface-raised);
+  box-shadow: var(--pb-frame-focus), var(--pb-shadow-bevel);
+  color: var(--pb-ink);
+  font: 500 12px/16px var(--pb-font-body);
+}
+#pb-brd-pick .pb-pk { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+#pb-brd-pick .pb-pk-tag { color: var(--pb-pika-yellow); font: 700 14px/16px var(--pb-font-body); }
+#pb-brd-pick .pb-pk-name { font-weight: 700; }
+#pb-brd-pick :is(.pb-pk-meta, .pb-pk-count) { color: var(--pb-ink-muted); }
+#pb-brd-pick .pb-pk-q { font-weight: 700; }
+#pb-brd-pick .pb-pk-range { color: var(--pb-pika-yellow); font: 400 10px/16px var(--pb-font-pixel); white-space: nowrap; }
+#pb-brd-pick .pb-pk-count { margin-left: auto; white-space: nowrap; }
 
 /* Confirmação, revelação e avisos. */
 .game-root .brd-window :is(.brd-confirm-card, .brd-reveal-card, .brd-toast, .brd-err) {
