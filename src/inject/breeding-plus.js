@@ -13,6 +13,9 @@
 //    de fora. Também só estado da tela.
 // 4. Escolhido junto da caixa: com um pai escolhido, a caixa fica lá embaixo e o par sai da tela ao rolar. Uma faixa
 //    presa no topo da caixa mostra quem está escolhido e a qualidade que o par precisa ter.
+// 5. Desempate pelo IV: a caixa é virtual (o jogo só desenha as linhas na tela), então a ordem vai na própria lista do
+//    useState. O jogo ordena por qualidade, nível ou IV com um sort estável; com a lista já em IV decrescente, quem
+//    empata fica com o maior IV primeiro, na lista inteira. No visual Original fica a ordem do jogo.
 (() => {
   if (window.__pbBreeding) return;
   window.__pbBreeding = true;
@@ -48,6 +51,8 @@
   const inBox = e => (e.breedingBox || moved.has(e.id)) && !e.team && !e.starter;  // o filtro do jogo
   // Quem o Depósito aceita na Breeding Box: fora do time, sem o inicial, sem Ditto e sem anúncio no Mercado.
   const movable = e => !e.team && !e.starter && !e.listed && !e.isDitto && e.speciesId !== 132 && !String(e.id).startsWith('team-');
+  const ivOf = e => e.ivTotal ?? -1;
+  const byIv = (a, b) => ivOf(b) - ivOf(a);
 
   let ws = null, offs = [], queue = null, hooks = null, obs = null, tabsEl = null, msgTimer = 0;
   let byId = new Map(), all = [], box = [], got = false;
@@ -102,10 +107,20 @@
     got = true;
     byId = new Map(list.map(e => [String(e.id), e]));
     for (const id of moved) if (byId.get(String(id))?.breedingBox) moved.delete(id);
-    all = list.filter(movable);
-    box = list.filter(inBox);
-    // Depois dos outros ouvintes (o do Centro troca a lista pela da Breeding Box), no mesmo render.
-    queueMicrotask(() => { apply(); paint(); restoreState(); });
+    all = list.filter(movable).sort(byIv);
+    box = list.filter(inBox).sort(byIv);
+    // Depois dos outros ouvintes (o do Centro troca a lista pela da Breeding Box, na ordem do servidor), no mesmo render.
+    queueMicrotask(() => {
+      apply();
+      if (queue && skinOn() && !showAll()) queue.dispatch(box);
+      paint();
+      restoreState();
+    });
+  }
+  function ivOrder() {
+    const cur = queue?.lastRenderedState;
+    if (!skinOn() || !Array.isArray(cur) || cur.every((e, i) => !i || ivOf(cur[i - 1]) >= ivOf(e))) return;
+    queue.dispatch([...cur].sort(byIv));
   }
   function setTab(t) {
     if (t === tab) return;
@@ -143,7 +158,7 @@
     pending = null;
     if (!((m?.moved ?? 0) > 0)) { paint(); return say('Este Pokémon não pôde ir para a Breeding Box.'); }
     moved.add(id);
-    box = [...byId.values()].filter(inBox);
+    box = [...byId.values()].filter(inBox).sort(byIv);
     ws.requestPokes?.();
     pick(byId.get(String(id)) ?? { id });
     paint();
@@ -360,6 +375,7 @@
     if (wasAll && !nowAll && queue && got) queue.dispatch(box);  // saiu para o "Original": a caixa volta a ser a do jogo
     wasAll = nowAll;
     apply();
+    ivOrder();
     if (restored) saveState(); else restoreState();
     paintPick();
   }, CHECK_MS);

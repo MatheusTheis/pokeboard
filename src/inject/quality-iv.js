@@ -1,5 +1,7 @@
 // Quando o jogo ordena Pokémon por qualidade, desempata os multiplicadores iguais pelo maior IV.
 // Só muda a ordem visual dos cards já carregados; seleção, filtros e ações continuam com o jogo.
+// A caixa do Breeding fica de fora: ela é virtual (só as linhas na tela existem, entre espaçadores), e o desempate dela
+// é feito na própria lista, em breeding-plus.js.
 (() => {
   if (window.__pbQualityIv) return;
   window.__pbQualityIv = true;
@@ -22,7 +24,8 @@
       for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
         const v = h.memoizedState;
         const rows = Array.isArray(v?.[0]) ? v[0] : Array.isArray(v) ? v : null;
-        if (!rows?.length || !rows[0] || !('id' in rows[0]) || !('quality' in rows[0])) continue;
+        // Subindo até a raiz aparecem listas de texto ou número (ids, nomes): 'in' nelas lançaria erro e pararia tudo.
+        if (!rows?.length || !rows[0] || typeof rows[0] !== 'object' || !('id' in rows[0]) || !('quality' in rows[0])) continue;
         const ids = new Set(rows.map(p => String(p.id)));
         const matches = keys.filter(k => k && ids.has(k)).length;
         if (matches > hits) { hits = matches; best = rows; }
@@ -77,12 +80,9 @@
   function apply() {
     // No visual Original, os controles do jogo conservam sua ordem.
     const on = !!getComputedStyle(document.documentElement).getPropertyValue('--pb-screen').trim();
-    for (const win of document.querySelectorAll('.brd-window, .dpt-window, .fam-pane, .trd-win, .mkt2-window')) {
+    for (const win of document.querySelectorAll('.dpt-window, .fam-pane, .trd-win, .mkt2-window')) {
       const pairs = [];
-      if (win.matches('.brd-window')) {
-        const list = win.querySelector('.brd-box');
-        if (list) pairs.push([list, '.brd-box-poke', on && win.querySelector('.brd-box-sort')?.value === 'quality']);
-      } else if (win.matches('.mkt2-window')) {
+      if (win.matches('.mkt2-window')) {
         if (/comprar/i.test(win.querySelector('.mkt2-tab.on .mkt2-tab-label')?.textContent || '')) {
           const selected = on && qualitySort(win.querySelector('.mkt2-toolbar-row') || win);
           for (const list of win.querySelectorAll('.mkt2-grid, .mkt2-table')) pairs.push([list, '.mkt2-card, .mkt2-trow:not(.mkt2-trow--head)', selected]);
