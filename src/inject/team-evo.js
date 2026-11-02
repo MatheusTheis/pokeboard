@@ -1,8 +1,11 @@
-// Equipe › botão de evoluir: o jogo só mostra o nível da evolução em Cerulean (fora dela, só "só em Cerulean 🔒").
-// Aqui o botão mostra sempre o destino, o nível necessário (✓ quando já chegou, senão quantos faltam e uma barra) e,
-// fora de Cerulean, a etiqueta da cidade. Só muda o que aparece: o clique e as regras continuam do jogo.
-// Nível: o mesmo cálculo do jogo — Pokémon shiny usa o evolveNeedLevel dele; os outros, o evolveLevel da espécie
-// (sem ele, o nível de hunt da evolução), do creatures.json que o jogo já carregou.
+// Equipe.
+// 1. Botão de evoluir: o jogo só mostra o nível da evolução em Cerulean (fora dela, só "só em Cerulean 🔒").
+//    Aqui o botão mostra sempre o destino, o nível necessário (✓ quando já chegou, senão quantos faltam e uma barra) e,
+//    fora de Cerulean, a etiqueta da cidade. Só muda o que aparece: o clique e as regras continuam do jogo.
+//    Nível: o mesmo cálculo do jogo — Pokémon shiny usa o evolveNeedLevel dele; os outros, o evolveLevel da espécie
+//    (sem ele, o nível de hunt da evolução), do creatures.json que o jogo já carregou.
+// 2. IV: a ficha mostra a qualidade, mas não o IV. Ao lado do selo da qualidade entra um selo igual com o IV total do
+//    Pokémon escolhido (de 192), na cor que o jogo usa nas barras de atributo.
 (() => {
   if (window.__pbTeamEvo) return;
   window.__pbTeamEvo = true;
@@ -68,5 +71,43 @@
     box.innerHTML = `<span class="pb-evo-main">⬆ Evoluir para <b>${esc(dest || '?')}</b></span><span class="pb-evo-chips">${lvChip}${cityChip}</span>${bar}`;
     btn.dataset.pbEvo = key;
   }
-  setInterval(apply, CHECK_MS);
+
+  // ---------- IV ----------
+  const TYPES = '.team-window .team-detail .dex-types';  // tipos + selo da qualidade
+  const SLOT_ON = '.team-window .team-slot.on';          // o escolhido; a chave do botão é o id do Pokémon
+  const IV_MAX = 192;
+  // As cores das barras de atributo da ficha (dex-stat-bar), pela fração do máximo.
+  const ivColor = r => (r < 0.2 ? '#f34444' : r < 0.4 ? '#ff7f0f' : r < 0.6 ? '#ffdd57' : r < 0.8 ? '#a0e515' : r < 0.95 ? '#23cd5e' : '#00c2b8');
+  // O Pokémon pelo id, na lista de Pokémon que a janela guarda (a da mensagem "pokes"). A fibra do elemento pode ser a
+  // do render anterior; a fila do useState é a mesma nas duas e guarda o valor atual.
+  function pokeById(el, id) {
+    for (let f = fiberOf(el), d = 0; f && d < 40; f = f.return, d++) {
+      for (let h = f.memoizedState; h && typeof h === 'object' && 'next' in h; h = h.next) {
+        const v = h.queue ? h.queue.lastRenderedState : h.memoizedState;
+        if (!Array.isArray(v) || !v.length || typeof v[0] !== 'object') continue;
+        const p = v.find(x => x && typeof x === 'object' && String(x.id) === id && 'speciesId' in x);
+        if (p) return p;
+      }
+    }
+    return null;
+  }
+  function applyIv() {
+    const types = document.querySelector(TYPES), slot = document.querySelector(SLOT_ON);
+    let chip = types?.querySelector(':scope > .pb-iv');
+    const id = slot && fiberOf(slot)?.key;
+    const iv = id != null ? pokeById(slot, String(id))?.ivTotal : null;
+    if (!types || iv == null) { chip?.remove(); return; }
+    // O React põe os tipos do próximo Pokémon com append: o selo volta para o fim.
+    if (chip && chip !== types.lastElementChild) types.append(chip);
+    if (chip?.dataset.iv === String(iv)) return;
+    if (!chip) { chip = document.createElement('span'); chip.className = 'dex-type pb-iv'; types.append(chip); }
+    chip.dataset.iv = String(iv);
+    chip.textContent = `IV ${iv}/${IV_MAX}`;
+    chip.title = `IV total ${iv} de ${IV_MAX}`;
+    chip.style.background = ivColor(iv / IV_MAX);
+    chip.style.color = '#0b1420';
+  }
+  // Trocar de Pokémon é clique num slot: o React já desenhou quando o clique chega aqui.
+  document.addEventListener('click', e => { if (e.target.closest?.('.team-window')) requestAnimationFrame(applyIv); });
+  setInterval(() => { apply(); applyIv(); }, CHECK_MS);
 })();
