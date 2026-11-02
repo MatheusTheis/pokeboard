@@ -16,9 +16,9 @@
 // 5. Desempate pelo IV: a caixa é virtual (o jogo só desenha as linhas na tela), então a ordem vai na própria lista do
 //    useState. O jogo ordena por qualidade, nível ou IV com um sort estável; com a lista já em IV decrescente, quem
 //    empata fica com o maior IV primeiro, na lista inteira. No visual Original fica a ordem do jogo.
-// 6. Só compatíveis na aba Todos: com um pai escolhido, o jogo só apaga quem não serve (a mesma regra do card apagado:
-//    espécie, diferença de qualidade, mínimo do parceiro de shiny). Na aba Todos, com milhares, a lista do useState
-//    fica só com os pais e quem pode ser par; a Breeding Box continua a do jogo, com os apagados e o motivo.
+// 6. Só compatíveis: com um pai escolhido, o jogo só apaga quem não serve (a mesma regra do card apagado: espécie,
+//    diferença de qualidade, mínimo do parceiro de shiny). Nas duas abas (Breeding Box e Todos) a lista do useState
+//    fica só com os pais e quem pode ser par. No visual Original fica a caixa do jogo, com os apagados e o motivo.
 (() => {
   if (window.__pbBreeding) return;
   window.__pbBreeding = true;
@@ -104,13 +104,15 @@
     return null;
   }
 
-  // Na aba Todos, com pai escolhido, só os compatíveis. Ao filtrar a caixa volta ao topo (os melhores pela ordem); ao
-  // tirar o pai, volta à rolagem de antes.
-  let lastRef = null, fullTop = 0;
+  // A lista da aba (Breeding Box ou Todos) e, com pai escolhido, só os compatíveis. Ao filtrar a caixa volta ao topo
+  // (os melhores pela ordem); ao tirar o pai, volta à rolagem de antes.
+  let lastRef = null, fullTop = 0, pendPair = null;  // pendPair: pais devolvidos que o React ainda não desenhou
   function apply() {
-    if (!queue || !showAll()) { lastRef = null; return; }
-    const a = val(hooks.p1) ?? null, b = val(hooks.p2) ?? null, ref = (a ?? b)?.id ?? null;
-    const want = shown(a, b);
+    if (!queue || !got || !skinOn()) { lastRef = null; return; }
+    let a = val(hooks.p1) ?? null, b = val(hooks.p2) ?? null;
+    if (pendPair) { if (a || b) pendPair = null; else ({ a, b } = pendPair); }
+    const ref = (a ?? b)?.id ?? null;
+    const want = shown(showAll() ? all : box, a, b);
     if (queue.lastRenderedState !== want) queue.dispatch(want);
     if (ref === lastRef) return;
     const g = gridEl();
@@ -128,7 +130,6 @@
     // Depois dos outros ouvintes (o do Centro troca a lista pela da Breeding Box, na ordem do servidor), no mesmo render.
     queueMicrotask(() => {
       apply();
-      if (queue && skinOn() && !showAll()) queue.dispatch(box);
       paint();
       restoreState();
     });
@@ -142,8 +143,8 @@
     if (t === tab) return;
     tab = t;
     try { localStorage.setItem(TAB_KEY, t); } catch {}
-    if (t === 'all') apply();
-    else if (queue && got) queue.dispatch(box);
+    fullTop = 0;  // a rolagem guardada era da outra lista
+    apply();
     paint();
   }
 
@@ -269,14 +270,14 @@
     return ((s ? e.quality : ee.quality) ?? 0) >= min;
   }
   let shownFor = null, shownKey = '', shownList = null;
-  function shown(a, b) {
+  function shown(src, a, b) {
     const ee = a ?? b;
-    if (!ee) return all;
+    if (!ee) return src;
     const n = val(hooks?.center)?.shinyPartner;
     const key = [a?.id, b?.id, !!tiers, n ? JSON.stringify(n) : ''].join('|');
-    if (shownFor !== all || shownKey !== key) {
-      shownFor = all; shownKey = key;
-      shownList = all.filter(p => p.id === a?.id || p.id === b?.id || pairOk(ee, p));
+    if (shownFor !== src || shownKey !== key) {
+      shownFor = src; shownKey = key;
+      shownList = src.filter(p => p.id === a?.id || p.id === b?.id || pairOk(ee, p));
     }
     return shownList;
   }
@@ -377,8 +378,12 @@
       if (a) hooks.p1.dispatch(a);
       if (b) hooks.p2.dispatch(b);
     }
-    // Na aba Todos a lista já vai filtrada no mesmo render dos pais; a rolagem guardada é a dessa lista.
-    if ((a || b) && queue && showAll()) { queue.dispatch(shown(a, b)); lastRef = (a ?? b).id; fullTop = 0; }
+    // A lista já vai filtrada no mesmo render dos pais; a rolagem guardada é a dessa lista.
+    if ((a || b) && queue && got && skinOn()) {
+      pendPair = { a, b };
+      queue.dispatch(shown(showAll() ? all : box, a, b));
+      lastRef = (a ?? b).id; fullTop = 0;
+    }
     if (s.free === true && hooks.free) hooks.free.dispatch(true);
     if (s.dbl === true && hooks.dbl) hooks.dbl.dispatch(true);
     if (typeof s.search === 'string' && s.search && hooks.search && !val(hooks.search)) hooks.search.dispatch(s.search);
@@ -430,10 +435,10 @@
     offs = [];
     obs?.disconnect();
     obs = null; ws = null; queue = null; hooks = null; tabsEl = null; pending = null; got = false; pickEl = null; pickSig = '';
-    lastRef = null; fullTop = 0; shownFor = null;
+    lastRef = null; fullTop = 0; shownFor = null; pendPair = null;
   }
 
-  let sel = null, wasAll = false;
+  let sel = null, wasOn = false;
   setInterval(() => {
     const s = document.querySelector(SORT);
     if (s !== sel) {
@@ -446,9 +451,8 @@
     const bar = sel.closest(BAR);
     if (on && bar && queue && ws) mountTabs(bar);
     else if (tabsEl) { tabsEl.remove(); tabsEl = null; }
-    const nowAll = showAll();
-    if (wasAll && !nowAll && queue && got) queue.dispatch(box);  // saiu para o "Original": a caixa volta a ser a do jogo
-    wasAll = nowAll;
+    if (wasOn && !on && queue && got) queue.dispatch(box);  // saiu para o "Original": a caixa volta a ser a do jogo, sem filtro
+    wasOn = on;
     apply();
     ivOrder();
     if (restored) saveState(); else restoreState();
