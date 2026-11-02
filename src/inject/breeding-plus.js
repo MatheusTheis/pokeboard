@@ -16,6 +16,9 @@
 // 5. Desempate pelo IV: a caixa é virtual (o jogo só desenha as linhas na tela), então a ordem vai na própria lista do
 //    useState. O jogo ordena por qualidade, nível ou IV com um sort estável; com a lista já em IV decrescente, quem
 //    empata fica com o maior IV primeiro, na lista inteira. No visual Original fica a ordem do jogo.
+// 6. Só compatíveis na aba Todos: com um pai escolhido, o jogo só apaga quem não serve (a mesma regra do card apagado:
+//    espécie, diferença de qualidade, mínimo do parceiro de shiny). Na aba Todos, com milhares, a lista do useState
+//    fica só com os pais e quem pode ser par; a Breeding Box continua a do jogo, com os apagados e o motivo.
 (() => {
   if (window.__pbBreeding) return;
   window.__pbBreeding = true;
@@ -70,8 +73,9 @@
   }
   // As filas dos useState do Centro (o componente que guarda a ordem escolhida no seletor), achadas pela forma e não
   // pela posição: a caixa é o estado que é uma lista de Pokémon; logo depois vêm os dois pais (Pokémon ou null) e os
-  // dois booleanos (caminho Grátis, pedras em dobro); a busca é o texto logo antes da ordem. A fila é a mesma entre
-  // renders; o valor atual fica em lastRenderedState. Peça que não bater com a forma fica null (não é salva).
+  // dois booleanos (caminho Grátis, pedras em dobro); a busca é o texto logo antes da ordem. Antes da caixa vêm os
+  // dados do Centro (com shinyPartner). A fila é a mesma entre renders; o valor atual fica em lastRenderedState. Peça
+  // que não bater com a forma fica null (não é salva nem usada).
   const isPoke = v => !!v && typeof v === 'object' && 'speciesId' in v;
   function findHooks(sel) {
     for (let f = fiberOf(sel), d = 0; f && d < 40; f = f.return, d++) {
@@ -86,6 +90,7 @@
       return {
         list: st[li], p1: at(li + 1, slot), p2: at(li + 2, slot), free: at(li + 3, bool), dbl: at(li + 4, bool),
         search: si - 1 > li + 4 ? at(si - 1, v => typeof v === 'string') : null,
+        center: st.slice(0, li).findLast(q => !!q.lastRenderedState && typeof q.lastRenderedState === 'object' && 'shinyPartner' in q.lastRenderedState) ?? null,
       };
     }
     return null;
@@ -99,8 +104,19 @@
     return null;
   }
 
+  // Na aba Todos, com pai escolhido, só os compatíveis. Ao filtrar a caixa volta ao topo (os melhores pela ordem); ao
+  // tirar o pai, volta à rolagem de antes.
+  let lastRef = null, fullTop = 0;
   function apply() {
-    if (queue && showAll() && queue.lastRenderedState !== all) queue.dispatch(all);
+    if (!queue || !showAll()) { lastRef = null; return; }
+    const a = val(hooks.p1) ?? null, b = val(hooks.p2) ?? null, ref = (a ?? b)?.id ?? null;
+    const want = shown(a, b);
+    if (queue.lastRenderedState !== want) queue.dispatch(want);
+    if (ref === lastRef) return;
+    const g = gridEl();
+    if (g && lastRef == null) { fullTop = g.scrollTop; g.scrollTop = 0; lastTop = 0; }
+    else if (g && ref == null && fullTop > 0) scrollBack(fullTop, 10);
+    lastRef = ref;
   }
   function onPokes(m) {
     const list = m?.list ?? [];
@@ -199,11 +215,73 @@
 
   // ---------- escolhido junto da caixa ----------
   // Par normal: o jogo aceita diferença de qualidade até 0.15, arredondada em 3 casas (reasonQdiff). Com shiny não há
-  // diferença máxima, e sim um mínimo que o jogo calcula por tier; esse vem do texto que ele põe nos cards apagados.
+  // diferença máxima, e sim um mínimo que o jogo calcula por tier: fazemos a mesma conta (dados do Centro + tier da
+  // espécie); sem eles, vem do texto que o jogo põe nos cards apagados.
   const QDIFF = 0.15;
+  const SHINY_MIN = 1.6;  // o mínimo do jogo sem os dados do Centro ou sem tier; com eles, nunca abaixo de shinyPartner.min
   let pickEl = null, pickSig = '';
   const fmtQ = q => (q ?? 0).toFixed(3);
   const qOk = (a, b) => a == null || b == null || Math.round(1e3 * Math.abs(a - b)) / 1e3 <= QDIFF;
+
+  // Tier shiny de cada espécie: tabela fixa do jogo (SHINY_BY_DEX) que não fica exposta. Lida uma vez dos arquivos do
+  // próprio jogo (os já carregados vêm do cache; ela chega junto do Centro). Sem ela, vale o menor mínimo possível.
+  let tiers = null, tiersAsked = false;
+  async function loadTiers() {
+    if (tiersAsked) return;
+    tiersAsked = true;
+    const todo = [], seen = new Set();
+    const add = s => { for (const [, f] of String(s).matchAll(/static\/chunks\/([\w-]+\.js)/g)) if (!seen.has(f)) { seen.add(f); todo.push(f); } };
+    for (const el of document.querySelectorAll('script[src], link[href]')) add(el.src || el.href);
+    for (const r of performance.getEntriesByType('resource')) add(r.name);
+    for (let i = 0; i < todo.length && i < 80; i++) {
+      let txt = '';
+      try { txt = await (await fetch(`/_next/static/chunks/${todo[i]}`, { cache: 'force-cache' })).text(); } catch { continue; }
+      const at = txt.indexOf('"SHINY_BY_DEX"');
+      if (at < 0) { add(txt); continue; }
+      const end = txt.lastIndexOf('}', at), m = new Map();
+      for (const [, id, t] of txt.slice(txt.lastIndexOf('={', end), end + 1).matchAll(/(\d+):\{[^{}]*?\btier:"(\w+)"/g)) m.set(+id, t);
+      if (m.size) { tiers = m; sync(); }
+      return;
+    }
+  }
+  // O mínimo que o jogo pede do parceiro de um shiny (reasonShinyPartner), pela qualidade t do shiny mais forte.
+  // null = ainda não dá para saber (sem os dados do Centro ou sem a tabela de tiers).
+  function shinyNeed(speciesId, t) {
+    const c = val(hooks?.center), n = c?.shinyPartner;
+    if (!c) return null;
+    if (!n) return SHINY_MIN;
+    if (!tiers) { loadTiers(); return null; }
+    const g = n.grades?.[tiers.get(speciesId)];
+    if (!g) return SHINY_MIN;
+    const s = Math.max(0, Math.min(1, (t - g.floor) / Math.max(1e-6, g.breedMax - g.floor)));
+    return Math.min(n.hardCap, Math.round((n.min + (g.breedMax - n.min) * s) * 100) / 100);
+  }
+  // A regra do card apagado do jogo, para quem não está escolhido. Sem saber o mínimo do shiny, usa o menor possível:
+  // pode sobrar um apagado (o jogo apaga), mas nenhum par bom some.
+  function pairOk(ee, e) {
+    if (e.starter || e.isDitto) return false;
+    if (e.id === ee.id) return true;
+    if (e.speciesId !== ee.speciesId) return false;
+    if (!e.shiny && !ee.shiny) return qOk(ee.quality, e.quality);
+    const s = ee.shiny && (!e.shiny || (ee.quality ?? 0) >= (e.quality ?? 0));
+    const min = shinyNeed(ee.speciesId, (s ? ee.quality : e.quality) ?? 0)
+      ?? Math.min(SHINY_MIN, val(hooks?.center)?.shinyPartner?.min ?? SHINY_MIN);
+    return ((s ? e.quality : ee.quality) ?? 0) >= min;
+  }
+  let shownFor = null, shownKey = '', shownList = null;
+  function shown(a, b) {
+    const ee = a ?? b;
+    if (!ee) return all;
+    const n = val(hooks?.center)?.shinyPartner;
+    const key = [a?.id, b?.id, !!tiers, n ? JSON.stringify(n) : ''].join('|');
+    if (shownFor !== all || shownKey !== key) {
+      shownFor = all; shownKey = key;
+      shownList = all.filter(p => p.id === a?.id || p.id === b?.id || pairOk(ee, p));
+    }
+    return shownList;
+  }
+  const sync = () => { apply(); paintPick(); };
+
   function shinyMin() {
     for (const b of document.querySelectorAll(`.brd-window ${POKE}.dim`)) {
       const m = /≥\s*(\d+(?:[.,]\d+)?)/.exec(b.title || '');
@@ -226,7 +304,7 @@
     const a = val(hooks?.p1) ?? null, b = val(hooks?.p2) ?? null, ee = a ?? b;
     if (!ee || !bar || !skinOn()) { pickEl?.remove(); pickEl = null; pickSig = ''; return; }
     const list = val(hooks.list) ?? [];
-    const min = ee.shiny && !(a && b) ? shinyMin() : null;
+    const min = ee.shiny && !(a && b) ? shinyNeed(ee.speciesId, ee.quality ?? 0) ?? shinyMin() : null;
     const sig = JSON.stringify([a?.id, b?.id, a?.level, b?.level, list.length, min, tab]);
     if (pickEl?.isConnected && pickEl.previousElementSibling === bar && sig === pickSig) return;
     pickSig = sig;
@@ -239,24 +317,16 @@
       pickEl.append(span('pb-pk-range', `diferença ${fmtQ(Math.abs((a.quality ?? 0) - (b.quality ?? 0)))}`));
       return;
     }
-    // Quem da lista na tela (Breeding Box ou Todos) serve de par; shiny do outro lado tem regra própria e fica de fora.
-    const mates = list.filter(p => p.id !== ee.id && p.speciesId === ee.speciesId && !p.starter && !p.isDitto && !p.shiny);
-    let range, n;
-    if (!ee.shiny) {
-      range = `par: Q ${fmtQ(Math.max(0, (ee.quality ?? 0) - QDIFF))} a ${fmtQ((ee.quality ?? 0) + QDIFF)}`;
-      n = mates.filter(p => qOk(p.quality, ee.quality)).length;
-    } else if (min != null) {
-      range = `par: Q ≥ ${min.toFixed(2)}`;
-      n = mates.filter(p => (p.quality ?? 0) >= min).length;
-    } else {
-      range = 'par: sem diferença máxima (shiny)';
-      n = mates.length;
-    }
+    // A faixa vale para parceiro normal (shiny do outro lado tem mínimo próprio); a contagem é quem da lista na tela
+    // (Breeding Box ou Todos) serve de par, pela regra do jogo.
+    const range = !ee.shiny ? `par: Q ${fmtQ(Math.max(0, (ee.quality ?? 0) - QDIFF))} a ${fmtQ((ee.quality ?? 0) + QDIFF)}`
+      : min != null ? `par: Q ≥ ${min.toFixed(2)}` : 'par: sem diferença máxima (shiny)';
+    const n = list.filter(p => p.id !== ee.id && pairOk(ee, p)).length;
     pickEl.append(span('pb-pk-range', range), span('pb-pk-count', `${n} na ${showAll() ? 'lista' : 'caixa'}`));
   }
   // Escolher ou tirar um pai é clique: o React já desenhou quando o clique chega aqui.
   document.addEventListener('click', e => {
-    if (sel && e.target.closest?.('.brd-window')) requestAnimationFrame(paintPick);
+    if (sel && e.target.closest?.('.brd-window')) requestAnimationFrame(sync);
   });
   function mountTabs(bar) {
     if (tabsEl?.isConnected && tabsEl.parentNode === bar) return;
@@ -300,11 +370,15 @@
     restored = true;
     const s = saved;
     const ok = id => { const p = id != null && byId.get(String(id)); return p && inBox(p) && movable(p) ? p : null; };
+    let a = null, b = null;
     if (hooks.p1 && hooks.p2 && val(hooks.p1) == null && val(hooks.p2) == null) {
-      const a = ok(s.p1), b = ok(s.p2);
+      a = ok(s.p1); b = ok(s.p2);
+      if (b === a) b = null;
       if (a) hooks.p1.dispatch(a);
-      if (b && b !== a) hooks.p2.dispatch(b);
+      if (b) hooks.p2.dispatch(b);
     }
+    // Na aba Todos a lista já vai filtrada no mesmo render dos pais; a rolagem guardada é a dessa lista.
+    if ((a || b) && queue && showAll()) { queue.dispatch(shown(a, b)); lastRef = (a ?? b).id; fullTop = 0; }
     if (s.free === true && hooks.free) hooks.free.dispatch(true);
     if (s.dbl === true && hooks.dbl) hooks.dbl.dispatch(true);
     if (typeof s.search === 'string' && s.search && hooks.search && !val(hooks.search)) hooks.search.dispatch(s.search);
@@ -356,6 +430,7 @@
     offs = [];
     obs?.disconnect();
     obs = null; ws = null; queue = null; hooks = null; tabsEl = null; pending = null; got = false; pickEl = null; pickSig = '';
+    lastRef = null; fullTop = 0; shownFor = null;
   }
 
   let sel = null, wasAll = false;
